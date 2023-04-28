@@ -12,8 +12,10 @@ LiquidCrystal_I2C lcd(0x26, 16, 2); // set the LCD address to 0x27 for a 16 char
 ////////////////////*asignacion de servos*//////////////////////////////////////////////////////
 Servo servo1, servo2, servo3, servo4;
 ///////////////////////**asignacion de nombres a los pines**//////////////////////
-const short pinservo1 = 25;  // pin 8 conectado a señal del servo
-
+#define pinservo1  25 
+#define pinservo2  26
+#define pinservo3  27
+#define pinservo4  32 
 //////////////////////////////variables que nombraran los espacios de la eeprom///////////////
 byte ultim_corrid=0;
 byte intervalos_H=2;
@@ -31,6 +33,7 @@ const byte VALOR_DOWN=3;
 #define PIN_ARRIBA 14
 #define PIN_DISPENSE 4
 #define BAT_PIN 34
+#define buzzer  15 
 unsigned short UP;
 unsigned short IN;
 unsigned short DOWN;
@@ -52,8 +55,7 @@ String entradaSerial = "";    // String para almacenar entrada
 String commandBT;
 bool entradaCompleta = false; // Indicar si el String está completo
 //////////////////////////////////////////////////////////////////
-short buzzer = 23; // asignacion de nombre para el pin12
-short tiempo_apertura = 0;
+int16_t tiempo_apertura = 0;
 byte intervalos_hora = 1;
 byte ultima_corrida = 0;
 byte tipo_de_pez=0;
@@ -87,18 +89,24 @@ void setup()
   pinMode(PIN_ENTER, INPUT);      // MODO MEDIUM
   pinMode(PIN_ARRIBA, INPUT);      // MODO BIG
   pinMode(PIN_DISPENSE, INPUT);      // pin utilizado para el boton de desispendio manual
-  pinMode(23, OUTPUT); // buzzer de alarma
+  pinMode(buzzer, OUTPUT); // buzzer de alarma
   volt_bat=analogRead(BAT_PIN);
    voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
   bajo_voltage();
     ///////////////////////////////////////////////////////
   Serial.begin(115200); //ESP-32
-  SerialBT.begin("ESP32"); // nombre del dispositivo Bluetooth EN EL ESP32
+  SerialBT.begin("POWER FISH"); // nombre del dispositivo Bluetooth EN EL ESP32
   Serial.println("Bluetooth iniciado");
   //Serial.begin(9600); arduino 
   /////////////////INICIALIZACION de los servos ////////////////////////////////
-  servo1.write(12); // inicia con la compuerta cerrada
+  servo1.write(0); // inicia con la compuerta cerrada
+  servo2.write(0); // inicia con la compuerta cerrada
+  servo3.write(0); // inicia con la compuerta cerrada
+  servo4.write(0); // inicia con la compuerta cerrada
   servo1.attach(pinservo1);
+  servo2.attach(pinservo2);
+  servo3.attach(pinservo3);
+  servo4.attach(pinservo4);
   ///////////////////////////////////////////////////////////////////
   /////////////////////////////aviso del buzzer de que esta encendido el circuito//////////////////////////////////////
   if (!rtc.begin())
@@ -318,16 +326,17 @@ void DISPENDIO() // funcion de abrir y cerrar la compuerta
   //////////////////////////abre compuerta////////////////////
   if (servo_enable != 0)
   {  
-    for (pos = 12; pos <= 27; pos += 1)
+    for (pos = 0; pos <= 27; pos += 1)
     {
       servo1.write(pos);
-      delay(tiempo_apertura);
+      delay(20);
     }
+    delay(tiempo_apertura);
     //////////////////////////////cierra compuerta/////////////////////////
-    for (pos = 27; pos >= 12; pos -= 1)
+    for (pos = 27; pos >= 0; pos -= 1)
     {
       servo1.write(pos);
-      delay(tiempo_apertura);
+      delay(20);
     }
     //////////////aviso de que la compuerta cerrara//////////////////////
     digitalWrite(buzzer, HIGH);
@@ -922,6 +931,7 @@ void configuracion_intervalos()
 }
 void configuracion_dispendio(){
   sub_menu3=0;
+  EEPROM.read(tiem_apertura);
   while(sub_menu3>=-1)
   {
    botones=presionado();
@@ -1008,28 +1018,31 @@ void configuracion_dispendio(){
         lcd.setCursor(2,1);
         lcd.print(tiempo_apertura);
         lcd.setCursor(8,1);
-        lcd.print("(0-255)");
+        lcd.print("(0-32.555)");
         if(botones==VALOR_UP)
         {
-           tiempo_apertura++;
+          delay(50);
+           tiempo_apertura+=20;
         }
         else if(botones==VALOR_ENTER)
         {   
-          delay(100);
+
           EEPROM.write(tiem_apertura,tiempo_apertura);
+          delay(20);
           parametro_actualizado();
           sub_menu=config_dispen;
           return;
         }   
           else if(botones==VALOR_DOWN)
         {
-          tiempo_apertura--;
+          delay(50);
+          tiempo_apertura-=20;
         }
         if(tiempo_apertura==-1)
         {
-          tiempo_apertura=255;
+          tiempo_apertura=32500;
         }
-        if(tiempo_apertura>255)
+        if(tiempo_apertura>32500)
         {  
           tiempo_apertura=0;
         }
