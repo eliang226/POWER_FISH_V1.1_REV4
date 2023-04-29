@@ -41,11 +41,6 @@ short resultado=0;
 short botones=0;
 ///////////////////// variables de las posiciones de los diferentes menus////////
 signed short posicion=0;
-signed short sub_menu=0;
-signed short sub_menu1=0;
-signed short sub_menu2=0;
-signed short sub_menu3=0;
-signed short sub_menu4=0;
 /////////////////////variables del cambio de hora/////////////////////////
 short dispendio = 0;
 short milisegundos=0;
@@ -77,7 +72,7 @@ short porcentaje_bateria=0;
 bool alarma=false;
 const float adcResolution = 3400.0; // Resolución del ADC
 enum inicio {horas=0,prox_comida,intervalo,tip_pez,tamano,configuracion};
-enum config {config_hora=0,intervalos,config_dispen,config_pez,salir};
+enum config {config_hora=8,config_intervalos,config_dispen,config_pez,config_motores,salir};
 ///////////////////////////////////////////////////////////////////////
 void setup()
 { 
@@ -91,7 +86,7 @@ void setup()
   pinMode(PIN_DISPENSE, INPUT);      // pin utilizado para el boton de desispendio manual
   pinMode(buzzer, OUTPUT); // buzzer de alarma
   volt_bat=analogRead(BAT_PIN);
-   voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
+  voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
   bajo_voltage();
     ///////////////////////////////////////////////////////
   Serial.begin(115200); //ESP-32
@@ -281,22 +276,12 @@ void display_posicion()
 	{
 		lcd.clear();
 		posicion++;
-    sub_menu++;
-    sub_menu1++;
-    sub_menu2++;
-    sub_menu3++;
-    sub_menu4++;
     milisegundos = 0;
 	}
 	else if(botones==VALOR_UP)
 	{
 		lcd.clear();
 		posicion--;
-    sub_menu--;
-    sub_menu1--;
-    sub_menu2--;
-    sub_menu3--;
-    sub_menu4--;
     milisegundos = 0;
 	}	
 }
@@ -701,6 +686,7 @@ void pantalla_principal(){
     {
      delay(250);
      lcd.clear();
+     Serial.println();
      configuraciones();
     }
     display_posicion();
@@ -711,14 +697,14 @@ void pantalla_principal(){
   }
 }
 void configuraciones(){
-    sub_menu=0;
-   while(sub_menu>=-1)
+  posicion=7;
+  while(posicion>=7 && posicion<=14)
   {
    botones=presionado();
-   switch(sub_menu)
+   switch(posicion)
    {
-    case -1: 
-    sub_menu=0;
+      case 7: 
+      posicion=config_hora;
     break;
     case config_hora:
       lcd.setCursor(0,0);
@@ -735,7 +721,7 @@ void configuraciones(){
      }
      display_posicion();
      break;
-    case intervalos:
+    case config_intervalos:
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
       lcd.setCursor(0,1);
@@ -780,6 +766,15 @@ void configuraciones(){
       }
       display_posicion();
     break;
+    case config_motores:
+      lcd.setCursor(0,0);
+      lcd.print("*CONFIGURACION*");
+      lcd.setCursor(0,1);
+      lcd.print("->");
+      lcd.setCursor(2,1);
+      lcd.print("MOTORES");
+      display_posicion();
+    break;
     case salir:
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
@@ -796,101 +791,102 @@ void configuraciones(){
       }
      display_posicion();
     break;
-    case 5:
-      sub_menu=salir;
+    case 14:
+      posicion=salir;
     break;
    }
   }
- }
-void configuracion_hora(){
-   sub_menu1=0;
-   while(sub_menu1>-1)
- {
+}
+void configuracion_hora()
+{
+  posicion=15;
+  while(posicion>=15)
+  {
    delay(20);
    EEPROM.get(suma_H,suma_hora);
    EEPROM.get(suma_M,suma_minutos);
    botones=presionado();
-   switch(sub_menu1)
+   switch(posicion)
    {
-    case 0:
+      case 15:
       lcd.setCursor(6,0);
       lcd.print("HORA");
       lcd.setCursor(5,1);
       lcd.print(suma_hora);
       lcd.setCursor(7,1);
       lcd.print(":");
-    if(botones==VALOR_UP)
+      if(botones==VALOR_UP)
      {
-      delay(100);
-      suma_hora++;
+        delay(100);
+        suma_hora++;
      }
                                 
      else if (botones == VALOR_ENTER)
      {
-      delay(250);
-      rtc.adjust(DateTime(2022,6,5,suma_hora,minutos,0));
-      EEPROM.write(suma_H,suma_hora);
-      sub_menu1=1;
+        delay(250);
+        rtc.adjust(DateTime(2022,6,5,suma_hora,minutos,0));
+        EEPROM.write(suma_H,suma_hora);
+        posicion=16;
      }
 
      else if(botones==VALOR_DOWN)
      {
-      delay(100);
-      suma_hora--;
+        delay(100);
+        suma_hora--;
      }
      else if(suma_hora>24)
      {
       suma_hora=00;
      }
-    else if(suma_hora<0)
-    {
-      suma_hora=23;
-    }
-    break;
-    case 1:  // cambia los minutos // guardar en la eeprom
-      lcd.setCursor(6,0);
-      lcd.print("HORA");
-      lcd.setCursor(5,1);
-      lcd.print(suma_hora);
-      lcd.setCursor(7,1);
-      lcd.print(":");
-      lcd.setCursor(8,1);
-      lcd.print(suma_minutos);
-     if(botones == VALOR_UP)
-     {
-      delay(100);
-      suma_minutos++;
-     }
-     else if(botones == VALOR_ENTER)
-     {
-       delay(250);
-       rtc.adjust(DateTime(2022,6,5,suma_hora,suma_minutos,0));
-       EEPROM.write(suma_M,suma_minutos);
-       sub_menu=horas;
-       parametro_actualizado();
-       return;
+      else if(suma_hora<0)
+      {
+        suma_hora=23;
       }
-      else if(botones == VALOR_DOWN)
-     { 
-       delay(100);
-       suma_minutos--;
-      }
-     if(suma_minutos>59)
-     {
-       suma_minutos=00;
-      }
-     else if(suma_minutos<00)
-     {
-       suma_minutos=59;
-      }
+      break;
+      case 16:  // cambia los minutos // guardar en la eeprom
+        lcd.setCursor(6,0);
+        lcd.print("HORA");
+        lcd.setCursor(5,1);
+        lcd.print(suma_hora);
+        lcd.setCursor(7,1);
+        lcd.print(":");
+        lcd.setCursor(8,1);
+        lcd.print(suma_minutos);
+        if(botones == VALOR_UP)
+        {
+          delay(100);
+          suma_minutos++;
+        }
+        else if(botones == VALOR_ENTER)
+        {
+        delay(250);
+        rtc.adjust(DateTime(2022,6,5,suma_hora,suma_minutos,0));
+        EEPROM.write(suma_M,suma_minutos);
+        posicion=config_hora;
+        parametro_actualizado();
+        return;
+        }
+        else if(botones == VALOR_DOWN)
+        { 
+        delay(100);
+        suma_minutos--;
+        }
+       if(suma_minutos>59)
+        {
+        suma_minutos=00;
+        }
+        else if(suma_minutos<00)
+        {
+        suma_minutos=59;
+        }
      break;
     }
   }
 }
 void configuracion_intervalos()
 {
-  sub_menu2=0;
-  while(sub_menu2>-1)
+  posicion=17;
+  while(posicion>=17)
   {
     botones=presionado();
     lcd.setCursor(3,0);
@@ -911,7 +907,7 @@ void configuracion_intervalos()
       delay(250);
       EEPROM.write(intervalos_H,intervalos_hora);
       parametro_actualizado();
-      sub_menu=intervalos;
+      posicion=config_intervalos;
       return;
     }
     else if(botones==VALOR_DOWN)
@@ -930,17 +926,17 @@ void configuracion_intervalos()
   }
 }
 void configuracion_dispendio(){
-  sub_menu3=0;
+  posicion=18;
   EEPROM.read(tiem_apertura);
-  while(sub_menu3>=-1)
+  while(posicion>=-18)
   {
    botones=presionado();
-   switch(sub_menu3)
+   switch(posicion)
    {
-      case -1: 
-        sub_menu3=0; 
+      case 18: 
+        posicion=19; 
       break;
-      case 0:
+      case 19:
         lcd.setCursor(0,0);
         lcd.print("DISPENDIO PARA");
         lcd.setCursor(0,1);
@@ -953,12 +949,12 @@ void configuracion_dispendio(){
           tiempo_apertura=45;
           EEPROM.write(tiem_apertura,tiempo_apertura);
           parametro_actualizado();
-          sub_menu=config_dispen;
+          posicion=config_dispen;
           return;
         }
         display_posicion();
       break;
-      case 1:
+      case 20:
         lcd.setCursor(0,0);
         lcd.print("DISPENDIO PARA");
         lcd.setCursor(0,1);
@@ -971,12 +967,12 @@ void configuracion_dispendio(){
           tiempo_apertura=75;
           EEPROM.write(tiem_apertura,tiempo_apertura);
           parametro_actualizado();
-          sub_menu=config_dispen;
+          posicion=config_dispen;
           return;
         }
         display_posicion();
       break;
-      case 2:
+      case 21:
         lcd.setCursor(0,0);
         lcd.print("DISPENDIO PARA");
         lcd.setCursor(0,1);
@@ -989,12 +985,12 @@ void configuracion_dispendio(){
           tiempo_apertura=100;
           EEPROM.write(tiem_apertura,tiempo_apertura);
           parametro_actualizado();
-          sub_menu=config_dispen;
+          posicion=config_dispen;
           return;
         }
         display_posicion();
       break;
-      case 3:
+      case 22:
         lcd.setCursor(0,0);
         lcd.print("DISPENDIO PARA");
         lcd.setCursor(0,1);
@@ -1005,12 +1001,12 @@ void configuracion_dispendio(){
         {
           delay(100);
           lcd.clear();
-          sub_menu3=5;
+          posicion=24;
         }
         display_posicion();
       break;
-      case 4: sub_menu3=3; break;
-      case 5:
+      case 23: posicion=22; break;
+      case 24:
         lcd.setCursor(0,0);
         lcd.print("DURACION");
         lcd.setCursor(0,1);
@@ -1021,7 +1017,7 @@ void configuracion_dispendio(){
         lcd.print("(0-32.555)");
         if(botones==VALOR_UP)
         {
-          delay(50);
+           delay(50);
            tiempo_apertura+=20;
         }
         else if(botones==VALOR_ENTER)
@@ -1030,7 +1026,7 @@ void configuracion_dispendio(){
           EEPROM.write(tiem_apertura,tiempo_apertura);
           delay(20);
           parametro_actualizado();
-          sub_menu=config_dispen;
+          posicion=config_dispen;
           return;
         }   
           else if(botones==VALOR_DOWN)
@@ -1051,16 +1047,16 @@ void configuracion_dispendio(){
   }
 }
 void configuracion_tipo_pez(){
-   sub_menu4=0;
-   while(sub_menu4>=-1)
+   posicion=25;
+   while(posicion>=25)
    {
     botones=presionado();
-    switch(sub_menu4)
+    switch(posicion)
     {
-      case -1: 
-       sub_menu4=0;
+      case 25: 
+       posicion=26;
       break;
-      case 0:
+      case 26:
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
@@ -1072,13 +1068,13 @@ void configuracion_tipo_pez(){
           delay(250);
           tipo_de_pez=1;
           EEPROM.write(TIPO_PEZ,tipo_de_pez);
-          sub_menu=config_pez;
+          posicion=config_pez;
           parametro_actualizado();
           return;
         }
         display_posicion();
       break;
-      case 1:
+      case 27:
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
@@ -1090,13 +1086,13 @@ void configuracion_tipo_pez(){
           delay(250);
           tipo_de_pez=2;
           EEPROM.write(TIPO_PEZ,tipo_de_pez);
-          sub_menu=config_pez;
+          posicion=config_pez;
           parametro_actualizado();
           return;
         }
         display_posicion();
       break;
-      case 2:
+      case 28:
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
@@ -1108,13 +1104,13 @@ void configuracion_tipo_pez(){
           delay(250);
           tipo_de_pez=3;
           EEPROM.write(TIPO_PEZ,tipo_de_pez);
-          sub_menu=config_pez;
+          posicion=config_pez;
           parametro_actualizado();
           return;
         }
         display_posicion();
       break;
-      case 3:
+      case 29:
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
@@ -1126,13 +1122,13 @@ void configuracion_tipo_pez(){
            delay(250);
            tipo_de_pez=4;
            EEPROM.write(TIPO_PEZ,tipo_de_pez);
-           sub_menu=config_pez;
+           posicion=config_pez;
            parametro_actualizado();
            return;
         }
         display_posicion();
-        break;
-       case 4:
+      break;
+      case 30:
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
@@ -1144,13 +1140,13 @@ void configuracion_tipo_pez(){
           delay(250);
           tipo_de_pez=5;
           EEPROM.write(TIPO_PEZ,tipo_de_pez);
-          sub_menu=config_pez;
+          posicion=config_pez;
           parametro_actualizado();
           return;
         }
         display_posicion();
       break;
-      case 5: sub_menu3=4; break;
-     }
-   }
- }
+      case 5: posicion=30; break;
+    }
+  }
+}
