@@ -16,6 +16,10 @@ Servo servo1, servo2, servo3, servo4;
 #define pinservo2  26
 #define pinservo3  27
 #define pinservo4  32 
+bool M1_available = true;
+bool M2_available = true;
+bool M3_available = true;
+bool M4_available = true;
 //////////////////////////////variables que nombraran los espacios de la eeprom///////////////
 byte ultim_corrid=0;
 byte intervalos_H=2;
@@ -23,6 +27,10 @@ byte tiem_apertura=4;
 byte TIPO_PEZ=6;
 byte suma_H=8;
 byte suma_M=10;
+#define M1_status 12
+#define M2_status 14
+#define M3_status 16
+#define M4_status 18
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////variables de los botones//////////
 const byte VALOR_UP=1;
@@ -153,6 +161,10 @@ void setup()
   delay(100);
   EEPROM.get(intervalos_H,intervalos_hora);
   /////////////////////////////////////////////
+  M1_available=EEPROM.get(M1_status,M1_available);
+  M2_available=EEPROM.get(M2_status,M2_available);
+  M3_available=EEPROM.get(M3_status,M3_available);
+  M4_available=EEPROM.get(M4_status,M4_available);
 }
 void loop()
 {
@@ -313,14 +325,36 @@ void DISPENDIO() // funcion de abrir y cerrar la compuerta
   {  
     for (pos = 0; pos <= 27; pos += 1)
     {
-      servo1.write(pos);
+      if(M1_available==true){
+        servo1.write(pos);
+      }
+      if(M2_available==true){
+        servo2.write(pos);
+      }
+      if(M3_available==true){
+        servo3.write(pos);
+      }
+      if(M4_available==true){
+        servo4.write(pos);
+      }
       delay(20);
     }
     delay(tiempo_apertura);
     //////////////////////////////cierra compuerta/////////////////////////
     for (pos = 27; pos >= 0; pos -= 1)
     {
-      servo1.write(pos);
+      if(M1_available==true){
+        servo1.write(pos);
+      }
+      if(M2_available==true){
+        servo2.write(pos);
+      }
+      if(M3_available==true){
+        servo3.write(pos);
+      }
+      if(M4_available==true){
+        servo4.write(pos);
+      }
       delay(20);
     }
     //////////////aviso de que la compuerta cerrara//////////////////////
@@ -686,8 +720,7 @@ void pantalla_principal(){
     {
      delay(250);
      lcd.clear();
-     Serial.println();
-     configuraciones();
+     pantalla_configuraciones();
     }
     display_posicion();
    break;
@@ -696,10 +729,11 @@ void pantalla_principal(){
    break;
   }
 }
-void configuraciones(){
+void pantalla_configuraciones(){
   posicion=7;
   while(posicion>=7 && posicion<=14)
   {
+    dispendio=digitalRead(PIN_DISPENSE);
    botones=presionado();
    switch(posicion)
    {
@@ -773,6 +807,17 @@ void configuraciones(){
       lcd.print("->");
       lcd.setCursor(2,1);
       lcd.print("MOTORES");
+      if (botones == VALOR_ENTER)
+      {
+        delay(100);
+        lcd.clear();
+        configuracion_motores();
+      }
+      if (dispendio == HIGH) //incia el proceso de alimentacion manualmente
+      {
+        servo_enable = 1;
+        DISPENDIO(); // inicia el proceso de abrir la compuerta 
+      }
       display_posicion();
     break;
     case salir:
@@ -1147,6 +1192,224 @@ void configuracion_tipo_pez(){
         display_posicion();
       break;
       case 5: posicion=30; break;
+    }
+  }
+}
+void configuracion_motores() {
+  posicion=31;
+  while(posicion>=31)
+  {
+    botones=presionado();
+    switch (posicion)
+    {
+      case 31: posicion=32; break;
+      case 32: 
+        lcd.setCursor(2,0);
+        lcd.print("*CONFIGURAR*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("M1");
+        if(botones==VALOR_ENTER)
+        {
+          delay(250);
+          lcd.clear();
+          posicion=38;
+        }
+        display_posicion();
+      break;
+      case 33:
+        lcd.setCursor(2,0);
+        lcd.print("*CONFIGURAR*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("M2");
+        if(botones==VALOR_ENTER)
+        {
+          delay(250);
+          lcd.clear();
+          posicion=42;
+        }
+        display_posicion();
+      break;
+      case 34:
+        lcd.setCursor(2,0);
+        lcd.print("*CONFIGURAR*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("M3");  
+        if(botones==VALOR_ENTER)
+        {
+          delay(250);
+          lcd.clear();
+          posicion=46;
+        }
+        display_posicion();
+      break;
+      case 35:
+        lcd.setCursor(2,0);
+        lcd.print("*CONFIGURAR*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("M4");
+        if(botones==VALOR_ENTER)
+        {
+          delay(250);
+          lcd.clear(); 
+          posicion=50;
+        }
+        display_posicion();
+      break;
+      case 36: posicion=35; break;
+      ///////////////M1////////////////////////
+      case 37: posicion=38; break;
+      case 38:
+        lcd.setCursor(6,0);
+        lcd.print("*M1*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("ACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          M1_available=true;
+          EEPROM.write(M1_status,M1_available);
+          parametro_actualizado();
+          posicion=config_motores;
+          return;
+        }
+        display_posicion();
+      break;
+      case 39:
+        lcd.setCursor(6,0);
+        lcd.print("*M1*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("DESACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          M1_available=false;
+          EEPROM.write(M1_status,M1_available);
+          parametro_actualizado();
+          posicion=config_motores;
+          return;
+        }
+        display_posicion();
+      break;
+      case 40: posicion=39; break;
+      ///////////////M2////////////////////
+      case 41: posicion=42; break;
+      case 42:
+        lcd.setCursor(6,0);
+        lcd.print("*M2*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("ACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          M2_available=true;
+          EEPROM.write(M2_status,M2_available);
+          parametro_actualizado();
+          posicion=config_motores;
+          return;
+        }
+        display_posicion();
+      break;
+      case 43:
+        lcd.setCursor(6,0);
+        lcd.print("*M2*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("DESACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          M2_available=false;
+          EEPROM.write(M2_status,M2_available);
+          parametro_actualizado();
+          posicion=config_motores;
+          return;
+        }
+        display_posicion();
+      break;
+      case 44: posicion=43; break; 
+      /////////////////M3///////////////////////////
+        case 45: posicion = 46; break;
+        case 46:
+        lcd.setCursor(6,0);
+        lcd.print("*M3*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("ACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          M3_available=true;
+          EEPROM.write(M3_status,M3_available);
+          parametro_actualizado();
+          posicion=config_motores;
+          return;
+        }
+        display_posicion();
+      break;
+      case 47:
+        lcd.setCursor(6,0);
+        lcd.print("*M3*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("DESACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          M3_available=false;
+          EEPROM.write(M3_status,M3_available);
+          parametro_actualizado();
+          posicion=config_motores;
+          return;
+        }
+        display_posicion();
+      break;
+      case 48: posicion=47; break;
+      ////////////M4///////////////////
+      case 49:posicion=50; break;
+      case 50:
+        lcd.setCursor(6,0);
+        lcd.print("*M4*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("ACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          M4_available=true;
+          EEPROM.write(M4_status,M4_available);
+          parametro_actualizado();
+          posicion=config_motores;
+          return;
+        }
+        display_posicion();
+      break;
+      case 51:
+        lcd.setCursor(6,0);
+        lcd.print("*M4*");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("DESACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          M4_available=false;
+          EEPROM.write(M4_status,M4_available);
+          parametro_actualizado();
+          posicion=config_motores;
+          return;
+        }
+      break;  
     }
   }
 }
