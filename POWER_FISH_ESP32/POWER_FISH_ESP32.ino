@@ -155,16 +155,12 @@ void setup()
 	delay(2000);
 	lcd.clear();
   /// lee las informaciones en la memoria eeprom 
-  EEPROM.get(tiem_apertura,tiempo_apertura);
+  EEPROM.read(tiem_apertura);
   delay(100);
-  EEPROM.get(TIPO_PEZ,tipo_de_pez);
+  EEPROM.read(TIPO_PEZ);
   delay(100);
-  EEPROM.get(intervalos_H,intervalos_hora);
+  EEPROM.read(intervalos_H);
   /////////////////////////////////////////////
-  M1_available=EEPROM.get(M1_status,M1_available);
-  M2_available=EEPROM.get(M2_status,M2_available);
-  M3_available=EEPROM.get(M3_status,M3_available);
-  M4_available=EEPROM.get(M4_status,M4_available);
 }
 void loop()
 {
@@ -309,6 +305,11 @@ void parametro_actualizado()
 }
 void DISPENDIO() // funcion de abrir y cerrar la compuerta
 {
+  M1_available=EEPROM.read(M1_status);
+  M2_available=EEPROM.read(M2_status);
+  M3_available=EEPROM.read(M3_status);
+  M4_available=EEPROM.read(M4_status);
+  delay(100);
   lcd.clear();
   lcd.setCursor(2,0);
   lcd.print("*DISPENSANDO*");
@@ -553,6 +554,7 @@ void comandos_bluetooth()
   else if(commandBT=="prueba motores")
   {
     SerialBT.println("pronbando motores");
+    servo_enable = 1;
     prueba_motores();
   }
   else if(commandBT== "ajusta hora")
@@ -568,17 +570,45 @@ void comandos_bluetooth()
 }
 void prueba_motores()
 {
-  for (pos = 10; pos <= 180; pos += 1)
-  { // goes from 0 degrees to 180 degrees
-    // in steps of 1 degree
-    servo1.write(pos); // tell servo to go to position in variable 'pos'
-    delay(15);         // waits 15ms for the servo to reach the position
-  }
-  for (pos = 180; pos >= 10; pos -= 1)
-  {                    // goes from 180 degrees to 0 degrees
-    servo1.write(pos); // tell servo to go to position in variable 'pos'
-    delay(15);         // waits 15ms for the servo to reach the position
-  }
+  if (servo_enable != 0)
+  {  
+    for (pos = 0; pos <= 180; pos += 1)
+    {
+      if(M1_available==true){
+        servo1.write(pos);
+      }
+      if(M2_available==true){
+        servo2.write(pos);
+      }
+      if(M3_available==true){
+        servo3.write(pos);
+      }
+      if(M4_available==true){
+        servo4.write(pos);
+      }
+      delay(20);
+    }
+    delay(tiempo_apertura);
+    //////////////////////////////cierra compuerta/////////////////////////
+    for (pos = 180; pos >= 0; pos -= 1)
+    {
+      if(M1_available==true){
+        servo1.write(pos);
+      }
+      if(M2_available==true){
+        servo2.write(pos);
+      }
+      if(M3_available==true){
+        servo3.write(pos);
+      }
+      if(M4_available==true){
+        servo4.write(pos);
+      }
+       delay(20);
+    } 
+  
+  } 
+
 }
 void pantalla_principal(){
   DateTime fecha= rtc.now();
