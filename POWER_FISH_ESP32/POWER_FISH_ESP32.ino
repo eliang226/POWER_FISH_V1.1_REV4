@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <ESP32_Servo.h> 
+#include <ESP.h>
 #include <Wire.h>   // incluye libreria para interfaz I2C
 #include <RTClib.h> // incluye libreria para el manejo del modulo RTC
 #include <BluetoothSerial.h>
@@ -10,7 +11,7 @@ BluetoothSerial SerialBT;
 RTC_DS3231 rtc;     // crea objeto del tipo RTC_DS_3231
 LiquidCrystal_I2C lcd(0x26, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line displ
 ////////////////////*asignacion de servos*//////////////////////////////////////////////////////
-Servo servo1, servo2, servo3, servo4;
+Servo servo1, servo2, servo3, servo4; 
 ///////////////////////**asignacion de nombres a los pines**//////////////////////
 #define pinservo1  25 
 #define pinservo2  26
@@ -27,10 +28,12 @@ byte tiem_apertura=4;
 byte TIPO_PEZ=6;
 byte suma_H=8;
 byte suma_M=10;
-#define M1_status 12
-#define M2_status 14
-#define M3_status 16
-#define M4_status 18
+byte M1_status=12;
+byte M2_status=14;
+byte M3_status=16;
+byte M4_status=18;
+byte battery_status=20;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////variables de los botones//////////
 const byte VALOR_UP=1;
@@ -58,7 +61,7 @@ String entradaSerial = "";    // String para almacenar entrada
 String commandBT;
 bool entradaCompleta = false; // Indicar si el String está completo
 //////////////////////////////////////////////////////////////////
-int16_t tiempo_apertura = 0;
+int16_t tiempo_apertura = 500;
 byte intervalos_hora = 1;
 byte ultima_corrida = 0;
 byte tipo_de_pez=0;
@@ -78,38 +81,48 @@ float voltage=0;
 #define ADC_MIN 2900
 short porcentaje_bateria=0;
 bool alarma=false;
+bool battery_metter_available=false;
 const float adcResolution = 3400.0; // Resolución del ADC
 enum inicio {horas=0,prox_comida,intervalo,tip_pez,tamano,configuracion};
-enum config {config_hora=8,config_intervalos,config_dispen,config_pez,config_motores,salir};
+enum config {config_hora=8,config_intervalos,config_dispen,config_pez,config_motores,medidor_bat,salir};
 ///////////////////////////////////////////////////////////////////////
 void setup()
 { 
   lcd.init();
   lcd.backlight();
-  /////////////////////////pines declarados para salida y entrada////////////////////////
-  pinMode(BAT_PIN,OUTPUT);
+  EEPROM.begin(512);
+  pinMode(BAT_PIN,INPUT);
   pinMode(PIN_ABAJO, INPUT);      // MODO SMALL
   pinMode(PIN_ENTER, INPUT);      // MODO MEDIUM
   pinMode(PIN_ARRIBA, INPUT);      // MODO BIG
   pinMode(PIN_DISPENSE, INPUT);      // pin utilizado para el boton de desispendio manual
   pinMode(buzzer, OUTPUT); // buzzer de alarma
-  volt_bat=analogRead(BAT_PIN);
-  voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
-  bajo_voltage();
+  battery_metter_available=EEPROM.read(battery_status);
+  delay(20);
+  if(battery_metter_available==true){
+    volt_bat=analogRead(BAT_PIN);
+    voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
+    bajo_voltage();
+  }
+  pinMode(pinservo1,OUTPUT);
+  pinMode(pinservo2,OUTPUT);
+  pinMode(pinservo3,OUTPUT);
+  pinMode(pinservo4,OUTPUT);
+  servo1.attach(pinservo1);
+  servo2.attach(pinservo2);
+  servo3.attach(pinservo3);
+  servo4.attach(pinservo4);
+  servo1.write(0); // inicia con la compuerta cerrada
+  servo2.write(0); // inicia con la compuerta cerrada
+  servo3.write(0); // inicia con la compuerta cerrada
+  servo4.write(0); // inicia con la compuerta cerrada
+  /////////////////////////pines declarados para salida y entrada////////////////////////
     ///////////////////////////////////////////////////////
   Serial.begin(115200); //ESP-32
   SerialBT.begin("POWER FISH"); // nombre del dispositivo Bluetooth EN EL ESP32
   Serial.println("Bluetooth iniciado");
   //Serial.begin(9600); arduino 
   /////////////////INICIALIZACION de los servos ////////////////////////////////
-  servo1.write(0); // inicia con la compuerta cerrada
-  servo2.write(0); // inicia con la compuerta cerrada
-  servo3.write(0); // inicia con la compuerta cerrada
-  servo4.write(0); // inicia con la compuerta cerrada
-  servo1.attach(pinservo1);
-  servo2.attach(pinservo2);
-  servo3.attach(pinservo3);
-  servo4.attach(pinservo4);
   ///////////////////////////////////////////////////////////////////
   /////////////////////////////aviso del buzzer de que esta encendido el circuito//////////////////////////////////////
   if (!rtc.begin())
@@ -140,7 +153,7 @@ void setup()
   if (EEPROM.read(ultim_corrid)==255)
   {
     ultima_corrida=hora;
-    EEPROM.put(0,ultima_corrida);
+    EEPROM.write(0,ultima_corrida);
   }
   ultima_corrida = EEPROM.get(ultim_corrid,ultima_corrida); // recupera la ultima corrida en la memoria eeprom 
   ///////////////////////////////////bienvenida////////////// 
@@ -160,6 +173,10 @@ void setup()
   EEPROM.read(TIPO_PEZ);
   delay(100);
   EEPROM.read(intervalos_H);
+  EEPROM.read(M1_status);
+  EEPROM.read(M2_status);
+  EEPROM.read(M3_status);
+  EEPROM.read(M4_status);
   /////////////////////////////////////////////
 }
 void loop()
@@ -167,11 +184,12 @@ void loop()
   DateTime fecha = rtc.now(); // funcion que devuelve fecha y horario en formato
   botones=presionado();
   dispendio = digitalRead(PIN_DISPENSE);
-  volt_bat=analogRead(BAT_PIN);
-   voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
+  if(battery_metter_available==true) {
+    volt_bat=analogRead(BAT_PIN);
+    voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
+    bajo_voltage();
+  }
   pantalla_principal();
-  bajo_voltage();
-
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   if (dispendio == HIGH) //incia el proceso de alimentacion manualmente
   {
@@ -196,7 +214,9 @@ void loop()
   }
   while (hora < 9 || hora >= 17 && fecha.minute() >= 3) // while que desactiva la el circuito antes de la 9 AM y despues de las 6 PM
   {
+    if (battery_metter_available==true){
     bajo_voltage();
+    }
     DateTime fecha = rtc.now();
     hora = fecha.hour();
     botones=presionado();
@@ -228,7 +248,8 @@ void bajo_voltage()
     lcd.clear();
     while (alarma==true) // mientras la alarma esté activa y no hayan pasado más de 60 segundos
     { 
-     volt_bat=analogRead(BAT_PIN);
+       botones=presionado();
+      volt_bat=analogRead(BAT_PIN);
       voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
       lcd.setCursor(1,0);
       lcd.print("*BATERIA BAJA*");
@@ -242,8 +263,17 @@ void bajo_voltage()
         digitalWrite(buzzer,LOW);
         delay(750);
       }
-      delay(60000);
-      if (voltage==V_OPERATED)
+        if(botones==VALOR_ENTER)
+       {
+        delay(2500);
+        alarma==false;
+        battery_metter_available=false;
+        EEPROM.write(battery_status,battery_metter_available);
+        delay(100);
+        lcd.clear();
+        return;
+       }
+      else if (voltage==V_OPERATED)
       {
         delay(250);
         alarma=false;
@@ -305,10 +335,7 @@ void parametro_actualizado()
 }
 void DISPENDIO() // funcion de abrir y cerrar la compuerta
 {
-  M1_available=EEPROM.read(M1_status);
-  M2_available=EEPROM.read(M2_status);
-  M3_available=EEPROM.read(M3_status);
-  M4_available=EEPROM.read(M4_status);
+
   delay(100);
   lcd.clear();
   lcd.setCursor(2,0);
@@ -338,7 +365,7 @@ void DISPENDIO() // funcion de abrir y cerrar la compuerta
       if(M4_available==true){
         servo4.write(pos);
       }
-      delay(20);
+      delay(30);
     }
     delay(tiempo_apertura);
     //////////////////////////////cierra compuerta/////////////////////////
@@ -356,7 +383,7 @@ void DISPENDIO() // funcion de abrir y cerrar la compuerta
       if(M4_available==true){
         servo4.write(pos);
       }
-      delay(20);
+      delay(30);
     }
     //////////////aviso de que la compuerta cerrara//////////////////////
     digitalWrite(buzzer, HIGH);
@@ -586,7 +613,7 @@ void prueba_motores()
       if(M4_available==true){
         servo4.write(pos);
       }
-      delay(20);
+      delay(40);
     }
     delay(tiempo_apertura);
     //////////////////////////////cierra compuerta/////////////////////////
@@ -604,7 +631,7 @@ void prueba_motores()
       if(M4_available==true){
         servo4.write(pos);
       }
-       delay(20);
+       delay(40);
     } 
   
   } 
@@ -615,9 +642,11 @@ void pantalla_principal(){
   hora=fecha.hour();
   minutos=fecha.minute();
   botones=presionado();
-  volt_bat=analogRead(BAT_PIN);
-  voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
-  porcentaje_bateria=short((voltage - 3.4) / (4.2 - 3.4) * 100);
+  if(battery_metter_available==true){
+    volt_bat=analogRead(BAT_PIN);
+    voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
+    porcentaje_bateria=short((voltage - 3.4) / (4.2 - 3.4) * 100);
+  }
   switch(posicion)
   {
    case -1: 
@@ -632,31 +661,35 @@ void pantalla_principal(){
         lcd.print(":");
         lcd.setCursor(9,0);
         lcd.print(minutos);
-      if(milisegundos>=200){ //refresca los voltajes de la pantalla
-        lcd.setCursor(0,1);
-        lcd.print("VBAT:");
-        lcd.setCursor(5,1);
-        lcd.print(voltage);
-        lcd.setCursor(9,1);
-        lcd.print("V");
-        lcd.setCursor(10,1);
-        lcd.print("/");
-        lcd.setCursor(11,1);
-        lcd.print(porcentaje_bateria);
-        lcd.setCursor(13,1);
-        lcd.print("%");
+        if(battery_metter_available==true) 
+        {
+          if(milisegundos>=200)
+          { //refresca los voltajes de la pantalla
+            lcd.setCursor(0,1);
+            lcd.print("VBAT:");
+            lcd.setCursor(5,1);
+            lcd.print(voltage);
+            lcd.setCursor(9,1);
+            lcd.print("V");
+            lcd.setCursor(10,1);
+            lcd.print("/");
+            lcd.setCursor(11,1);
+            lcd.print(porcentaje_bateria);
+            lcd.setCursor(13,1);
+            lcd.print("%");
+            milisegundos = 0;
+          }
+        }
         if(hora < 9 || hora >= 17 && fecha.minute() >= 3)
         {
           lcd.setCursor(12,0);
           lcd.print("OUT");
         }
-        milisegundos = 0;
-      }
         delay(1);
         milisegundos ++;
-     display_posicion();
-     break;
-   case prox_comida:
+       display_posicion();
+      break;
+    case prox_comida:
     if(milisegundos>=400)
     {
       lcd.scrollDisplayLeft();
@@ -850,6 +883,21 @@ void pantalla_configuraciones(){
       }
       display_posicion();
     break;
+    case medidor_bat:
+      lcd.setCursor(0,0);
+      lcd.print("*CONFIGURACION*");
+      lcd.setCursor(0,1);
+      lcd.print("->");
+      lcd.setCursor(2,1);
+      lcd.print("MEDIDOR BAT.");
+      if (botones == VALOR_ENTER)
+      {
+        delay(100);
+        lcd.clear();
+        bat_metter();
+      }
+      display_posicion();
+    break;
     case salir:
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
@@ -864,10 +912,11 @@ void pantalla_configuraciones(){
         posicion=configuracion;
         return;
       }
-     display_posicion();
-    break;
-    case 14:
-      posicion=salir;
+     if(botones==VALOR_UP)
+     {
+      delay(100);
+      posicion--;
+     }
     break;
    }
   }
@@ -1229,7 +1278,7 @@ void configuracion_motores() {
   posicion=31;
   while(posicion>=31)
   {
-    botones=presionado();
+    
     switch (posicion)
     {
       case 31: posicion=32; break;
@@ -1307,6 +1356,7 @@ void configuracion_motores() {
           delay(250);
           M1_available=true;
           EEPROM.write(M1_status,M1_available);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
@@ -1324,6 +1374,7 @@ void configuracion_motores() {
           delay(250);
           M1_available=false;
           EEPROM.write(M1_status,M1_available);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
@@ -1344,6 +1395,7 @@ void configuracion_motores() {
           delay(250);
           M2_available=true;
           EEPROM.write(M2_status,M2_available);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
@@ -1361,6 +1413,7 @@ void configuracion_motores() {
           delay(250);
           M2_available=false;
           EEPROM.write(M2_status,M2_available);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
@@ -1381,6 +1434,7 @@ void configuracion_motores() {
           delay(250);
           M3_available=true;
           EEPROM.write(M3_status,M3_available);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
@@ -1398,6 +1452,7 @@ void configuracion_motores() {
           delay(250);
           M3_available=false;
           EEPROM.write(M3_status,M3_available);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
@@ -1418,6 +1473,7 @@ void configuracion_motores() {
           delay(250);
           M4_available=true;
           EEPROM.write(M4_status,M4_available);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
@@ -1435,11 +1491,70 @@ void configuracion_motores() {
           delay(250);
           M4_available=false;
           EEPROM.write(M4_status,M4_available);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
+        } 
+      break;
+    }
+  }
+}
+void bat_metter(){  
+  posicion=52;
+  while (posicion>=52)
+  {
+    botones=presionado();
+    switch(posicion)
+    {
+      case 52:
+        posicion=53;
+      break;
+      case 53:
+        lcd.setCursor(6,0);
+        lcd.print("MEDIDOR BATERIA");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("ACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          battery_metter_available=true;
+          EEPROM.write(battery_status,battery_metter_available);
+          EEPROM.commit();
+          parametro_actualizado();
+          delay(50);
+          ESP.restart();
+        }
+        if(botones==VALOR_DOWN)
+        {
+          delay(100);
+          posicion++;
+        }
+      break;
+      case 54:
+        lcd.setCursor(6,0);
+        lcd.print("MEDIDOR BATERIA");
+        lcd.setCursor(0,1);
+        lcd.print("->");
+        lcd.setCursor(2,1);
+        lcd.print("DESACTIVAR");
+        if(botones==VALOR_ENTER){
+          delay(250);
+          battery_metter_available=false;
+          EEPROM.write(battery_status,battery_metter_available);
+          EEPROM.commit();
+          parametro_actualizado();
+          delay(50);
+          ESP.restart();
+        }
+        else if(botones==VALOR_UP)
+        {
+          delay(100);
+          posicion--;
         }
       break;  
     }
+
   }
 }
