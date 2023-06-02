@@ -155,7 +155,7 @@ void setup()
     ultima_corrida=hora;
     EEPROM.write(0,ultima_corrida);
   }
-  ultima_corrida = EEPROM.get(ultim_corrid,ultima_corrida); // recupera la ultima corrida en la memoria eeprom 
+  ultima_corrida = EEPROM.read(ultim_corrid); // recupera la ultima corrida en la memoria eeprom 
   ///////////////////////////////////bienvenida////////////// 
   digitalWrite(buzzer, HIGH);
   delay(500);
@@ -172,7 +172,7 @@ void setup()
   delay(100);
   EEPROM.read(TIPO_PEZ);
   delay(100);
-  EEPROM.read(intervalos_H);
+  intervalos_hora=EEPROM.read(intervalos_H);
   EEPROM.read(M1_status);
   EEPROM.read(M2_status);
   EEPROM.read(M3_status);
@@ -232,14 +232,13 @@ void loop()
       Comando_serial();
     }
     if (SerialBT.available()) {
-    commandBT = SerialBT.readStringUntil('\n'); // lee la cadena hasta el caracter de nueva línea
-    commandBT.trim(); // elimina los espacios en blanco al principio y al final de la cadena
-    comandos_bluetooth();
-  }
+      commandBT = SerialBT.readStringUntil('\n'); // lee la cadena hasta el caracter de nueva línea
+      commandBT.trim(); // elimina los espacios en blanco al principio y al final de la cadena
+      comandos_bluetooth();
+    }
   }
 }
-void bajo_voltage()
-{
+void bajo_voltage(){
   if(voltage<V_MIN) //control de bajo voltaje
   {
     volt_bat=analogRead(BAT_PIN);
@@ -709,6 +708,7 @@ void pantalla_principal(){
     
    break;
    case intervalo:
+      EEPROM.read(intervalos_H);
       lcd.setCursor(3,0);
       lcd.print("INTERVALOS:");
       lcd.setCursor(3,1);
@@ -720,7 +720,7 @@ void pantalla_principal(){
       display_posicion();
    break;
    case tip_pez:
-     EEPROM.get(TIPO_PEZ,tipo_de_pez);
+     EEPROM.read(TIPO_PEZ);
      lcd.setCursor(0,0);
      lcd.print("TIPO DE PEZ:");
      lcd.setCursor(0,1);
@@ -754,7 +754,7 @@ void pantalla_principal(){
     display_posicion();
    break;
    case tamano:
-   EEPROM.get(tiem_apertura,tiempo_apertura);
+   EEPROM.read(tiem_apertura);
    lcd.setCursor(0,0);
    lcd.print("DISPENDIO PARA:");
    lcd.setCursor(0,1);
@@ -927,8 +927,8 @@ void configuracion_hora()
   while(posicion>=15)
   {
    delay(20);
-   EEPROM.get(suma_H,suma_hora);
-   EEPROM.get(suma_M,suma_minutos);
+   EEPROM.read(suma_H);
+   EEPROM.read(suma_M);
    botones=presionado();
    switch(posicion)
    {
@@ -1030,6 +1030,8 @@ void configuracion_intervalos()
     {
       delay(250);
       EEPROM.write(intervalos_H,intervalos_hora);
+      EEPROM.commit();
+      delay(50);
       parametro_actualizado();
       posicion=config_intervalos;
       return;

@@ -3,4 +3,5 @@
     "board": "esp32:esp32:esp32",
     "sketch": "POWER_FISH_ESP32\\POWER_FISH_ESP32.ino",
     "port": "COM21"
+    
 }
