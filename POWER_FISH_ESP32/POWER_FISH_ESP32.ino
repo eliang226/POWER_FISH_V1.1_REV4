@@ -70,6 +70,8 @@ byte hora = 0;
 byte minutos=0;
 byte suma_hora=0;
 byte suma_minutos=0;
+const unsigned long BACKLIGHT_TIMEOUT = 1 * 60 * 1000; // 3 minutos en milisegundos
+unsigned long lastActivityTime = 0;
 float volt_bat=0;
 const float  V_MIN=3.3;
 const float  V_MAX=4.2;
@@ -168,15 +170,13 @@ void setup()
 	delay(2000);
 	lcd.clear();
   /// lee las informaciones en la memoria eeprom 
-  EEPROM.read(tiem_apertura);
-  delay(100);
-  EEPROM.read(TIPO_PEZ);
-  delay(100);
-  intervalos_hora=EEPROM.read(intervalos_H);
-  EEPROM.read(M1_status);
-  EEPROM.read(M2_status);
-  EEPROM.read(M3_status);
-  EEPROM.read(M4_status);
+  tiempo_apertura = EEPROM.read(tiem_apertura);
+  intervalos_hora = EEPROM.read(intervalos_H);
+  tipo_de_pez = EEPROM.read(TIPO_PEZ);
+  M1_available = EEPROM.read(M1_status);
+  M2_available = EEPROM.read(M2_status);
+  M3_available = EEPROM.read(M3_status);
+  M4_available = EEPROM.read(M4_status);
   /////////////////////////////////////////////
 }
 void loop()
@@ -307,20 +307,39 @@ byte presionado()
   }
   return(resultado);
 }
-void display_posicion()
+void display_posicion(byte lower_posicion, byte upper_posicion)
 {
 	if(botones==VALOR_DOWN)
 	{
-		lcd.clear();
-		posicion++;
-    milisegundos = 0;
+    if (posicion < upper_posicion)
+    {
+      delay(150);
+      lcd.clear();
+      posicion++;
+      milisegundos = 0;
+      lastActivityTime = millis(); // Reiniciar el temporizador
+      lcd.setBacklight(HIGH);
+    }
 	}
 	else if(botones==VALOR_UP)
 	{
-		lcd.clear();
-		posicion--;
-    milisegundos = 0;
+    if (posicion > lower_posicion)
+    {
+      delay(150);
+      lcd.clear();
+      posicion--;
+      milisegundos = 0;
+      lastActivityTime = millis(); // Reiniciar el temporizador
+      lcd.setBacklight(HIGH);
+    }
 	}	
+  else if (millis() - lastActivityTime >= BACKLIGHT_TIMEOUT) {
+    lcd.setBacklight(LOW);
+    if( posicion >= config_hora)
+    {
+      posicion = configuracion;
+    }
+  }
 }
 void parametro_actualizado()
 {
@@ -686,7 +705,7 @@ void pantalla_principal(){
         }
         delay(1);
         milisegundos ++;
-       display_posicion();
+       display_posicion(horas,configuracion);
       break;
     case prox_comida:
     if(milisegundos>=400)
@@ -704,7 +723,7 @@ void pantalla_principal(){
     }
     delay(1);
     milisegundos++;
-    display_posicion();
+    display_posicion(horas,configuracion);
     
    break;
    case intervalo:
@@ -717,7 +736,7 @@ void pantalla_principal(){
       lcd.print(intervalos_hora);
       lcd.setCursor(7,1);
       lcd.print("HORAS");
-      display_posicion();
+      display_posicion(horas,configuracion);
    break;
    case tip_pez:
      EEPROM.read(TIPO_PEZ);
@@ -751,7 +770,7 @@ void pantalla_principal(){
         lcd.print("NO SELECCIONADO");
       break;
       }
-    display_posicion();
+    display_posicion(horas,configuracion);
    break;
    case tamano:
    EEPROM.read(tiem_apertura);
@@ -772,7 +791,7 @@ void pantalla_principal(){
       lcd.print("PERSONALIZADO");
      break;
     }
-    display_posicion();
+    display_posicion(horas,configuracion);
    break;
    case configuracion:
     lcd.setCursor(0,0);
@@ -785,7 +804,7 @@ void pantalla_principal(){
      lcd.clear();
      pantalla_configuraciones();
     }
-    display_posicion();
+    display_posicion(horas,configuracion);
    break;
    case 6:
      posicion=configuracion;
@@ -816,7 +835,7 @@ void pantalla_configuraciones(){
      lcd.clear();
      configuracion_hora();
      }
-     display_posicion();
+     display_posicion(config_hora,salir);
      break;
     case config_intervalos:
       lcd.setCursor(0,0);
@@ -831,7 +850,7 @@ void pantalla_configuraciones(){
         lcd.clear();
         configuracion_intervalos();
       }
-      display_posicion();
+      display_posicion(config_hora,salir);
     break;                    
     case config_dispen:
       lcd.setCursor(0,0);
@@ -846,7 +865,7 @@ void pantalla_configuraciones(){
       lcd.clear();
      configuracion_dispendio();
      }
-     display_posicion();
+     display_posicion(config_hora,salir);
     break;
     case config_pez:
       lcd.setCursor(0,0);
@@ -861,7 +880,7 @@ void pantalla_configuraciones(){
         lcd.clear();
         configuracion_tipo_pez();
       }
-      display_posicion();
+      display_posicion(config_hora,salir);
     break;
     case config_motores:
       lcd.setCursor(0,0);
@@ -876,12 +895,12 @@ void pantalla_configuraciones(){
         lcd.clear();
         configuracion_motores();
       }
-      if (dispendio == HIGH) //incia el proceso de alimentacion manualmente
+      else if (dispendio == HIGH) //incia el proceso de alimentacion manualmente
       {
         servo_enable = 1;
         DISPENDIO(); // inicia el proceso de abrir la compuerta 
       }
-      display_posicion();
+      display_posicion(config_hora,salir);
     break;
     case medidor_bat:
       lcd.setCursor(0,0);
@@ -896,7 +915,7 @@ void pantalla_configuraciones(){
         lcd.clear();
         bat_metter();
       }
-      display_posicion();
+      display_posicion(config_hora,salir);
     break;
     case salir:
       lcd.setCursor(0,0);
@@ -912,11 +931,7 @@ void pantalla_configuraciones(){
         posicion=configuracion;
         return;
       }
-     if(botones==VALOR_UP)
-     {
-      delay(100);
-      posicion--;
-     }
+      display_posicion(config_hora,salir);
     break;
    }
   }
@@ -1074,11 +1089,12 @@ void configuracion_dispendio(){
           delay(100);
           tiempo_apertura=45;
           EEPROM.write(tiem_apertura,tiempo_apertura);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_dispen;
           return;
         }
-        display_posicion();
+        display_posicion(19,22);
       break;
       case 20:
         lcd.setCursor(0,0);
@@ -1092,11 +1108,12 @@ void configuracion_dispendio(){
           delay(100);
           tiempo_apertura=75;
           EEPROM.write(tiem_apertura,tiempo_apertura);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_dispen;
           return;
         }
-        display_posicion();
+        display_posicion(19,22);
       break;
       case 21:
         lcd.setCursor(0,0);
@@ -1110,11 +1127,12 @@ void configuracion_dispendio(){
           delay(100);
           tiempo_apertura=100;
           EEPROM.write(tiem_apertura,tiempo_apertura);
+          EEPROM.commit();
           parametro_actualizado();
           posicion=config_dispen;
           return;
         }
-        display_posicion();
+        display_posicion(19,22);
       break;
       case 22:
         lcd.setCursor(0,0);
@@ -1129,7 +1147,7 @@ void configuracion_dispendio(){
           lcd.clear();
           posicion=24;
         }
-        display_posicion();
+        display_posicion(19,22);
       break;
       case 23: posicion=22; break;
       case 24:
@@ -1150,6 +1168,7 @@ void configuracion_dispendio(){
         {   
 
           EEPROM.write(tiem_apertura,tiempo_apertura);
+          EEPROM.commit();
           delay(20);
           parametro_actualizado();
           posicion=config_dispen;
@@ -1194,11 +1213,12 @@ void configuracion_tipo_pez(){
           delay(250);
           tipo_de_pez=1;
           EEPROM.write(TIPO_PEZ,tipo_de_pez);
+          EEPROM.commit();
           posicion=config_pez;
           parametro_actualizado();
           return;
         }
-        display_posicion();
+        display_posicion(26,30);
       break;
       case 27:
         lcd.setCursor(0,0);
@@ -1212,11 +1232,12 @@ void configuracion_tipo_pez(){
           delay(250);
           tipo_de_pez=2;
           EEPROM.write(TIPO_PEZ,tipo_de_pez);
+          EEPROM.commit();
           posicion=config_pez;
           parametro_actualizado();
           return;
         }
-        display_posicion();
+        display_posicion(26,30);
       break;
       case 28:
         lcd.setCursor(0,0);
@@ -1230,11 +1251,12 @@ void configuracion_tipo_pez(){
           delay(250);
           tipo_de_pez=3;
           EEPROM.write(TIPO_PEZ,tipo_de_pez);
+          EEPROM.commit();
           posicion=config_pez;
           parametro_actualizado();
           return;
         }
-        display_posicion();
+        display_posicion(26,30);
       break;
       case 29:
         lcd.setCursor(0,0);
@@ -1248,11 +1270,12 @@ void configuracion_tipo_pez(){
            delay(250);
            tipo_de_pez=4;
            EEPROM.write(TIPO_PEZ,tipo_de_pez);
+           EEPROM.commit();
            posicion=config_pez;
            parametro_actualizado();
            return;
         }
-        display_posicion();
+        display_posicion(26,30);
       break;
       case 30:
         lcd.setCursor(0,0);
@@ -1266,11 +1289,12 @@ void configuracion_tipo_pez(){
           delay(250);
           tipo_de_pez=5;
           EEPROM.write(TIPO_PEZ,tipo_de_pez);
+          EEPROM.commit();
           posicion=config_pez;
           parametro_actualizado();
           return;
         }
-        display_posicion();
+        display_posicion(26,30);
       break;
       case 5: posicion=30; break;
     }
@@ -1297,7 +1321,7 @@ void configuracion_motores() {
           lcd.clear();
           posicion=38;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 33:
         lcd.setCursor(2,0);
@@ -1312,7 +1336,7 @@ void configuracion_motores() {
           lcd.clear();
           posicion=42;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 34:
         lcd.setCursor(2,0);
@@ -1327,7 +1351,7 @@ void configuracion_motores() {
           lcd.clear();
           posicion=46;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 35:
         lcd.setCursor(2,0);
@@ -1342,7 +1366,7 @@ void configuracion_motores() {
           lcd.clear(); 
           posicion=50;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 36: posicion=35; break;
       ///////////////M1////////////////////////
@@ -1358,12 +1382,13 @@ void configuracion_motores() {
           delay(250);
           M1_available=true;
           EEPROM.write(M1_status,M1_available);
+          
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
           return;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 39:
         lcd.setCursor(6,0);
@@ -1381,7 +1406,7 @@ void configuracion_motores() {
           posicion=config_motores;
           return;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 40: posicion=39; break;
       ///////////////M2////////////////////
@@ -1402,7 +1427,7 @@ void configuracion_motores() {
           posicion=config_motores;
           return;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 43:
         lcd.setCursor(6,0);
@@ -1420,7 +1445,7 @@ void configuracion_motores() {
           posicion=config_motores;
           return;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 44: posicion=43; break; 
       /////////////////M3///////////////////////////
@@ -1441,7 +1466,7 @@ void configuracion_motores() {
           posicion=config_motores;
           return;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 47:
         lcd.setCursor(6,0);
@@ -1459,7 +1484,7 @@ void configuracion_motores() {
           posicion=config_motores;
           return;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 48: posicion=47; break;
       ////////////M4///////////////////
@@ -1480,7 +1505,7 @@ void configuracion_motores() {
           posicion=config_motores;
           return;
         }
-        display_posicion();
+        display_posicion(32,51);
       break;
       case 51:
         lcd.setCursor(6,0);
@@ -1498,6 +1523,7 @@ void configuracion_motores() {
           posicion=config_motores;
           return;
         } 
+        display_posicion(32,51);
       break;
     }
   }
