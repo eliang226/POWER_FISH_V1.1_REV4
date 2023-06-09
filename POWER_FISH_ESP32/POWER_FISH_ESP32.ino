@@ -22,29 +22,29 @@ bool M2_available = true;
 bool M3_available = true;
 bool M4_available = true;
 //////////////////////////////variables que nombraran los espacios de la eeprom///////////////
-byte ultim_corrid=0;
-byte intervalos_H=2;
-byte tiem_apertura=4;
-byte TIPO_PEZ=6;
-byte suma_H=8;
-byte suma_M=10;
-byte M1_status=12;
-byte M2_status=14;
-byte M3_status=16;
-byte M4_status=18;
-byte battery_status=20;
-
+#define ultim_corrid 0
+#define intervalos_H 2
+#define TIPO_PEZ 6
+#define suma_H 8
+#define suma_M 10
+#define M1_status 12
+#define M2_status 14
+#define M3_status 16
+#define M4_status 18
+#define battery_status 20
+#define tiem_apertura 22 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////variables de los botones//////////
-const byte VALOR_UP=1;
-const byte VALOR_ENTER=2;
-const byte VALOR_DOWN=3;
 #define PIN_ABAJO 13
 #define PIN_ENTER 12
 #define PIN_ARRIBA 14
 #define PIN_DISPENSE 4
 #define BAT_PIN 34
 #define buzzer  15 
+#define antirebote 150
+const short VALOR_UP=1;
+const short VALOR_ENTER=2;
+const short VALOR_DOWN=3;
 unsigned short UP;
 unsigned short IN;
 unsigned short DOWN;
@@ -55,21 +55,22 @@ signed short posicion=0;
 /////////////////////variables del cambio de hora/////////////////////////
 short dispendio = 0;
 short milisegundos=0;
-byte servo_enable = 1;
-byte aviso_cambio = 0;
+short servo_enable = 1;
+short aviso_cambio = 0;
 String entradaSerial = "";    // String para almacenar entrada
 String commandBT;
+char buffer[20];
 bool entradaCompleta = false; // Indicar si el String está completo
 //////////////////////////////////////////////////////////////////
-int16_t tiempo_apertura = 500;
-byte intervalos_hora = 1;
-byte ultima_corrida = 0;
-byte tipo_de_pez=0;
+int tiempo_apertura = 500;
+short intervalos_hora = 1;
+short ultima_corrida = 0;
+short tipo_de_pez=0;
 short pos = 0;
-byte hora = 0;
-byte minutos=0;
-byte suma_hora=0;
-byte suma_minutos=0;
+short hora = 0;
+short minutos=0;
+short suma_hora=0;
+short suma_minutos=0;
 const unsigned long BACKLIGHT_TIMEOUT = 1 * 60 * 1000; // 3 minutos en milisegundos
 unsigned long lastActivityTime = 0;
 float volt_bat=0;
@@ -85,14 +86,14 @@ short porcentaje_bateria=0;
 bool alarma=false;
 bool battery_metter_available=false;
 const float adcResolution = 3400.0; // Resolución del ADC
-enum inicio {horas=0,prox_comida,intervalo,tip_pez,tamano,configuracion};
+enum inicio {horas=0,prox_comida,intervalo,tip_pez,cantidad,configuracion};
 enum config {config_hora=8,config_intervalos,config_dispen,config_pez,config_motores,medidor_bat,salir};
 ///////////////////////////////////////////////////////////////////////
 void setup()
 { 
   lcd.init();
   lcd.backlight();
-  EEPROM.begin(512);
+  EEPROM.begin(4096);
   pinMode(BAT_PIN,INPUT);
   pinMode(PIN_ABAJO, INPUT);      // MODO SMALL
   pinMode(PIN_ENTER, INPUT);      // MODO MEDIUM
@@ -100,7 +101,6 @@ void setup()
   pinMode(PIN_DISPENSE, INPUT);      // pin utilizado para el boton de desispendio manual
   pinMode(buzzer, OUTPUT); // buzzer de alarma
   battery_metter_available=EEPROM.read(battery_status);
-  delay(20);
   if(battery_metter_available==true){
     volt_bat=analogRead(BAT_PIN);
     voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
@@ -124,8 +124,6 @@ void setup()
   SerialBT.begin("POWER FISH"); // nombre del dispositivo Bluetooth EN EL ESP32
   Serial.println("Bluetooth iniciado");
   //Serial.begin(9600); arduino 
-  /////////////////INICIALIZACION de los servos ////////////////////////////////
-  ///////////////////////////////////////////////////////////////////
   /////////////////////////////aviso del buzzer de que esta encendido el circuito//////////////////////////////////////
   if (!rtc.begin())
   { // en caso de el no encontrar el modulo RTC sonara el buzzer y el circuito no iniciara
@@ -150,12 +148,12 @@ void setup()
   if(hora>=9 && hora<=17)
   {
     ultima_corrida=hora;
-    EEPROM.write(ultim_corrid,ultima_corrida);
+    EEPROM.put(ultim_corrid,ultima_corrida);
   }
   if (EEPROM.read(ultim_corrid)==255)
   {
     ultima_corrida=hora;
-    EEPROM.write(0,ultima_corrida);
+    EEPROM.put(0,ultima_corrida);
   }
   ultima_corrida = EEPROM.read(ultim_corrid); // recupera la ultima corrida en la memoria eeprom 
   ///////////////////////////////////bienvenida////////////// 
@@ -170,7 +168,7 @@ void setup()
 	delay(2000);
 	lcd.clear();
   /// lee las informaciones en la memoria eeprom 
-  tiempo_apertura = EEPROM.read(tiem_apertura);
+  tiempo_apertura = EEPROM.get(tiem_apertura,tiempo_apertura);
   intervalos_hora = EEPROM.read(intervalos_H);
   tipo_de_pez = EEPROM.read(TIPO_PEZ);
   M1_available = EEPROM.read(M1_status);
@@ -201,7 +199,7 @@ void loop()
     servo_enable = 1;
     DISPENDIO(); // inicia el proceso de abrir la compuerta 
     ultima_corrida = hora;
-    EEPROM.write(ultim_corrid,ultima_corrida);
+    EEPROM.put(ultim_corrid,ultima_corrida);
   }
   if (SerialBT.available()) {
     commandBT = SerialBT.readStringUntil('\n'); // lee la cadena hasta el caracter de nueva línea
@@ -232,7 +230,7 @@ void loop()
       Comando_serial();
     }
     if (SerialBT.available()) {
-      commandBT = SerialBT.readStringUntil('\n'); // lee la cadena hasta el caracter de nueva línea
+      commandBT = SerialBT.readStringUntil('\n'); // lee la cadena hasta el caracter de nueva 
       commandBT.trim(); // elimina los espacios en blanco al principio y al final de la cadena
       comandos_bluetooth();
     }
@@ -242,12 +240,12 @@ void bajo_voltage(){
   if(voltage<V_MIN) //control de bajo voltaje
   {
     volt_bat=analogRead(BAT_PIN);
-     voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
+    voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
     alarma=true;
     lcd.clear();
     while (alarma==true) // mientras la alarma esté activa y no hayan pasado más de 60 segundos
     { 
-       botones=presionado();
+      botones=presionado();
       volt_bat=analogRead(BAT_PIN);
       voltage = map(volt_bat+=40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
       lcd.setCursor(1,0);
@@ -262,16 +260,16 @@ void bajo_voltage(){
         digitalWrite(buzzer,LOW);
         delay(750);
       }
-        if(botones==VALOR_ENTER)
-       {
+      if(botones==VALOR_ENTER)
+      {
         delay(2500);
         alarma==false;
         battery_metter_available=false;
-        EEPROM.write(battery_status,battery_metter_available);
-        delay(100);
+        EEPROM.put(battery_status,battery_metter_available);
+        delay(antirebote);
         lcd.clear();
         return;
-       }
+      }
       else if (voltage==V_OPERATED)
       {
         delay(250);
@@ -338,6 +336,7 @@ void display_posicion(byte lower_posicion, byte upper_posicion)
     if( posicion >= config_hora)
     {
       posicion = configuracion;
+      lcd.clear();
     }
   }
 }
@@ -354,7 +353,7 @@ void parametro_actualizado()
 void DISPENDIO() // funcion de abrir y cerrar la compuerta
 {
 
-  delay(100);
+  delay(antirebote);
   lcd.clear();
   lcd.setCursor(2,0);
   lcd.print("*DISPENSANDO*");
@@ -453,46 +452,22 @@ void Comando_serial()
     Serial.println("tamaño:");
     switch (tiempo_apertura)
     {
-      case 45:
-        Serial.println("pequeños");
-      break;
-      case 75:
-        Serial.println("medianos");
-      break;
-      case 100:
-        Serial.println("grandes");
-      break;
-      default:
-        Serial.println("personalizado");
-      break;
+      case 45:  Serial.println("pequeños");      break;
+      case 75:  Serial.println("medianos");      break;
+      case 100: Serial.println("grandes");       break;
+      default:  Serial.println("personalizado"); break;
     }
     Serial.println("TIPO DE PEZ:");
     switch(tipo_de_pez)
-    {
-    case 1:
-      Serial.println("TILAPIA");
-    break;
-    case 2:
-      Serial.println("TILAPIA ROJA");
-    break;
-    case 3:
-      Serial.println("CABEZA DE LEON");
-    break;
-    case 4:
-      Serial.println("SALMON");
-    break;
-    case 5:
-      Serial.println("BEBE DE TIBURON");
-    break;
-    case 6:
-      Serial.println("KOI");
-    break;
-    case 7:
-      Serial.println("PETRA");
-    break;
-    default:
-      Serial.println("NO SELECCIONADO");
-    break;
+    { 
+    case 1:  Serial.println("TILAPIA");          break;
+    case 2:  Serial.println("TILAPIA ROJA");     break;
+    case 3:  Serial.println("CABEZA DE LEON");   break;
+    case 4:  Serial.println("SALMON");           break;
+    case 5:  Serial.println("BEBE DE TIBURON");  break;
+    case 6:  Serial.println("KOI");              break;
+    case 7:  Serial.println("PETRA");            break;
+    default: Serial.println("NO SELECCIONADO");  break;
     }
     Serial.println("volatage:");
     Serial.println(voltage);
@@ -540,50 +515,27 @@ void comandos_bluetooth()
     }
     SerialBT.println(ultima_corrida + intervalos_hora);
     SerialBT.println("tamaño:");
-    switch (tiempo_apertura)
-    {
-      case 45:
-        SerialBT.println("pequeños");
-      break;
-      case 75:
-        SerialBT.println("medianos");
-      break;
-      case 100:
-        SerialBT.println("grandes");
-      break;
-      default:
-        SerialBT.println("personalizado");
-      break;
-    }
-    SerialBT.println("TIPO DE PEZ:");
-    switch(tipo_de_pez)
-    {
-    case 1:
-      SerialBT.println("TILAPIA");
-    break;
-    case 2:
-      SerialBT.println("TILAPIA ROJA");
-    break;
-    case 3:
-      SerialBT.println("CABEZA DE LEON");
-    break;
-    case 4:
-      SerialBT.println("SALMON");
-    break;
-    case 5:
-      SerialBT.println("BEBE DE TIBURON");
-    break;
-    case 6:
-      SerialBT.println("KOI");
-    break;
-    case 7:
-      SerialBT.println("PETRA");
-    break;
-    default:
-      SerialBT.println("NO SELECCIONADO");
-    break;
-    }
-    SerialBT.println("volatage:");
+  switch (tiempo_apertura) {
+    case 45: SerialBT.println("pequeños"); break;
+    case 75: SerialBT.println("medianos"); break;
+    case 100: SerialBT.println("grandes"); break;
+    default: SerialBT.println("personalizado"); break;
+  }
+
+  SerialBT.println("TIPO DE PEZ:");
+
+  switch (tipo_de_pez) {
+    case 1: SerialBT.println("TILAPIA");          break;
+    case 2: SerialBT.println("TILAPIA ROJA");     break;
+    case 3: SerialBT.println("CABEZA DE LEON");   break;
+    case 4: SerialBT.println("SALMON");           break;
+    case 5: SerialBT.println("BEBE DE TIBURON");  break;
+    case 6: SerialBT.println("KOI");              break;
+    case 7: SerialBT.println("PETRA");            break;
+    default: SerialBT.println("NO SELECCIONADO"); break;
+  }
+
+    SerialBT.println("voltaje:");
     SerialBT.println(voltage);
     SerialBT.print("(");
     SerialBT.print(porcentaje_bateria);
@@ -598,7 +550,7 @@ void comandos_bluetooth()
   }
   else if(commandBT=="prueba motores")
   {
-    SerialBT.println("pronbando motores");
+    SerialBT.println("probando motores");
     servo_enable = 1;
     prueba_motores();
   }
@@ -671,144 +623,94 @@ void pantalla_principal(){
      posicion=horas;
    break;
    case horas:
-        lcd.setCursor(0,0);
-        lcd.print("HORA:");
-        lcd.setCursor(5,0);
-        lcd.print(fecha.hour());
-        lcd.setCursor(7,0);
-        lcd.print(":");
-        lcd.setCursor(9,0);
-        lcd.print(minutos);
-        if(battery_metter_available==true) 
+      snprintf(buffer, sizeof(buffer), "HORA:%02d:%02d", fecha.hour(), minutos);
+      lcd.setCursor(0, 0);
+      lcd.print(buffer);
+      if(battery_metter_available==true) 
+      {
+        if(milisegundos>=200)
         {
-          if(milisegundos>=200)
-          { //refresca los voltajes de la pantalla
-            lcd.setCursor(0,1);
-            lcd.print("VBAT:");
-            lcd.setCursor(5,1);
-            lcd.print(voltage);
-            lcd.setCursor(9,1);
-            lcd.print("V");
-            lcd.setCursor(10,1);
-            lcd.print("/");
-            lcd.setCursor(11,1);
-            lcd.print(porcentaje_bateria);
-            lcd.setCursor(13,1);
-            lcd.print("%");
-            milisegundos = 0;
-          }
+          lcd.setCursor(0, 1);
+          lcd.printf("VBAT: %.2fV/%d%%", voltage, porcentaje_bateria);
+          milisegundos = 0;
         }
-        if(hora < 9 || hora >= 17 && fecha.minute() >= 3)
-        {
-          lcd.setCursor(12,0);
-          lcd.print("OUT");
-        }
-        delay(1);
-        milisegundos ++;
-       display_posicion(horas,configuracion);
-      break;
+      }
+      if(hora < 9 || hora >= 17 && fecha.minute() >= 3)
+      {
+        lcd.setCursor(11,0);
+        lcd.print("(OUT)");
+      }
+      delay(1);
+      milisegundos ++;
+      display_posicion(horas,configuracion);
+    break;
     case prox_comida:
-    if(milisegundos>=400)
-    {
-      lcd.scrollDisplayLeft();
-     lcd.setCursor(0,0);
-     lcd.print("ULTIMA COMIDA:");
-     lcd.setCursor(15,0);
-     lcd.print(ultima_corrida);
-     lcd.setCursor(0,1);
-     lcd.print("PROXIMA COMIDA:");
-     lcd.setCursor(15,1);
-     lcd.print(ultima_corrida+intervalos_hora);
-     milisegundos=0;
-    }
-    delay(1);
-    milisegundos++;
-    display_posicion(horas,configuracion);
-    
-   break;
-   case intervalo:
+      lcd.setCursor(0, 0);
+      lcd.printf("ULT. COMIDA: %d", ultima_corrida);
+      lcd.setCursor(0, 1);
+      lcd.printf("PROX. COMIDA: %d", ultima_corrida + intervalos_hora);
+     display_posicion(horas,configuracion);
+    break;
+    case intervalo:
       EEPROM.read(intervalos_H);
       lcd.setCursor(3,0);
       lcd.print("INTERVALOS:");
-      lcd.setCursor(3,1);
-      lcd.print("C/");
       lcd.setCursor(5,1);
-      lcd.print(intervalos_hora);
-      lcd.setCursor(7,1);
-      lcd.print("HORAS");
+      lcd.printf("C/%dHORA",intervalos_hora);
       display_posicion(horas,configuracion);
-   break;
-   case tip_pez:
+    break;
+    case tip_pez:
      EEPROM.read(TIPO_PEZ);
      lcd.setCursor(0,0);
      lcd.print("TIPO DE PEZ:");
      lcd.setCursor(0,1);
      switch(tipo_de_pez)
      {
-      case 1:
-        lcd.print("TILAPIA");
-      break;
-      case 2:
-        lcd.print("TILAPIA ROJA");
-      break;
-      case 3:
-        lcd.print("CABEZA DE LEON");
-      break;
-      case 4:
-        lcd.print("SALMON");
-      break;
-      case 5:
-        lcd.print("BEBE DE TIBURON");
-      break;
-      case 6:
-        lcd.print("KOI");
-      break;
-      case 7:
-        lcd.print("PETRA");
-      break;
-      default:
-        lcd.print("NO SELECCIONADO");
-      break;
+      case 1: lcd.print("TILAPIA");          break;
+      case 2: lcd.print("TILAPIA ROJA");     break;
+      case 3: lcd.print("CABEZA DE LEON");   break;
+      case 4: lcd.print("SALMON");           break;
+      case 5: lcd.print("BEBE DE TIBURON");  break;
+      case 6: lcd.print("KOI");              break;
+      case 7: lcd.print("PETRA");            break;
+      default:lcd.print("NO SELECCIONADO"); break;
       }
-    display_posicion(horas,configuracion);
-   break;
-   case tamano:
-   EEPROM.read(tiem_apertura);
-   lcd.setCursor(0,0);
-   lcd.print("DISPENDIO PARA:");
-   lcd.setCursor(0,1);
-    switch (tiempo_apertura)
-    {
-     case 45:
-      lcd.print("ALEVINE");
-     break;
-     case 75:
-      lcd.print("JUVENILES");
-     break;
-     case 100:
-     lcd.print("ADULTOS");
-     default:
-      lcd.print("PERSONALIZADO");
-     break;
-    }
-    display_posicion(horas,configuracion);
-   break;
-   case configuracion:
-    lcd.setCursor(0,0);
-    lcd.print("CONFIGURACION");
-    lcd.setCursor(0,1);
-    lcd.print("*PRESIONE ENTER*");
-    if(botones==VALOR_ENTER)
-    {
-     delay(250);
-     lcd.clear();
-     pantalla_configuraciones();
-    }
-    display_posicion(horas,configuracion);
-   break;
-   case 6:
+      display_posicion(horas,configuracion);
+    break;
+    case cantidad:
+      tiempo_apertura=EEPROM.get(tiem_apertura,tiempo_apertura);
+      lcd.setCursor(0,0);
+      lcd.print("DISPENDIO PARA:");
+      lcd.setCursor(0,1);
+      if      (tiempo_apertura == 45)   lcd.print("ALEVINE");
+      else if (tiempo_apertura == 75)   lcd.print("JUVENILES");
+      else if (tiempo_apertura == 100)  lcd.print("ADULTOS");
+      else 
+      {
+        lcd.setCursor(0, 1);
+        if (tiempo_apertura >= 1000) lcd.printf("TIEMPO:%-4.1fSEG", tiempo_apertura / 1000.0);
+        else lcd.printf("%-8s%dMS", "TIEMPO:", tiempo_apertura);
+      }
+      display_posicion(horas,configuracion);
+    break;
+    case configuracion:
+      lcd.setCursor(0,0);
+      lcd.print("CONFIGURACION");
+      lcd.setCursor(0,1);
+      lcd.print("*PRESIONE ENTER*");
+      if(botones==VALOR_ENTER)
+      {
+        lastActivityTime = millis(); // Reiniciar el temporizador
+        lcd.setBacklight(HIGH);
+      delay(antirebote);
+      lcd.clear();
+      pantalla_configuraciones();
+      }
+      display_posicion(horas,configuracion);
+    break;
+    case 6:
      posicion=configuracion;
-   break;
+    break;
   }
 }
 void pantalla_configuraciones(){
@@ -826,27 +728,23 @@ void pantalla_configuraciones(){
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
       lcd.setCursor(0,1);
-      lcd.print("->");
-      lcd.setCursor(2,1);
-      lcd.print("HORA");
+      lcd.print("->HORA");
     if (botones == VALOR_ENTER)
-    {
-     delay(100);
-     lcd.clear();
-     configuracion_hora();
-     }
+      {
+        delay(antirebote);
+        lcd.clear();
+        configuracion_hora();
+      }
      display_posicion(config_hora,salir);
-     break;
+    break;
     case config_intervalos:
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
       lcd.setCursor(0,1);
-      lcd.print("->");
-      lcd.setCursor(2,1);
-      lcd.print("INTERVALOS");
+      lcd.print("->INTERVALOS");
       if(botones==VALOR_ENTER)
       {
-        delay(250);
+        delay(antirebote);
         lcd.clear();
         configuracion_intervalos();
       }
@@ -856,12 +754,10 @@ void pantalla_configuraciones(){
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
       lcd.setCursor(0,1);
-      lcd.print("->");
-      lcd.setCursor(2,1);
-      lcd.print("DISPENDIO");
+      lcd.print("->DISPENDIO");
     if (botones == VALOR_ENTER)
     {
-      delay(100);
+      delay(antirebote);
       lcd.clear();
      configuracion_dispendio();
      }
@@ -871,12 +767,10 @@ void pantalla_configuraciones(){
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
       lcd.setCursor(0,1);
-      lcd.print("->");
-      lcd.setCursor(2,1);
-      lcd.print("TIPO DE PEZ");
+      lcd.print("->TIPO DE PEZ");
       if (botones==VALOR_ENTER)
       {
-        delay(100);
+        delay(antirebote);
         lcd.clear();
         configuracion_tipo_pez();
       }
@@ -886,12 +780,10 @@ void pantalla_configuraciones(){
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
       lcd.setCursor(0,1);
-      lcd.print("->");
-      lcd.setCursor(2,1);
-      lcd.print("MOTORES");
+      lcd.print("->MOTORES");
       if (botones == VALOR_ENTER)
       {
-        delay(100);
+        delay(antirebote);
         lcd.clear();
         configuracion_motores();
       }
@@ -906,12 +798,10 @@ void pantalla_configuraciones(){
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
       lcd.setCursor(0,1);
-      lcd.print("->");
-      lcd.setCursor(2,1);
-      lcd.print("MEDIDOR BAT.");
+      lcd.print("->MEDIDOR BAT.");
       if (botones == VALOR_ENTER)
       {
-        delay(100);
+        delay(antirebote);
         lcd.clear();
         bat_metter();
       }
@@ -921,12 +811,10 @@ void pantalla_configuraciones(){
       lcd.setCursor(0,0);
       lcd.print("*CONFIGURACION*");
       lcd.setCursor(0,1);
-      lcd.print("->");
-      lcd.setCursor(2,1);
-      lcd.print("SALIR");
+      lcd.print("->SALIR");
       if (botones == VALOR_ENTER)
       {
-        delay(100);
+        delay(antirebote);
         lcd.clear();
         posicion=configuracion;
         return;
@@ -956,21 +844,21 @@ void configuracion_hora()
       lcd.print(":");
       if(botones==VALOR_UP)
      {
-        delay(100);
+        delay(antirebote);
         suma_hora++;
      }
                                 
      else if (botones == VALOR_ENTER)
      {
-        delay(250);
+        delay(antirebote);
         rtc.adjust(DateTime(2022,6,5,suma_hora,minutos,0));
-        EEPROM.write(suma_H,suma_hora);
+        EEPROM.put(suma_H,suma_hora);
         posicion=16;
      }
 
      else if(botones==VALOR_DOWN)
      {
-        delay(100);
+        delay(antirebote);
         suma_hora--;
      }
      else if(suma_hora>24)
@@ -993,21 +881,21 @@ void configuracion_hora()
         lcd.print(suma_minutos);
         if(botones == VALOR_UP)
         {
-          delay(100);
+          delay(antirebote);
           suma_minutos++;
         }
         else if(botones == VALOR_ENTER)
         {
-        delay(250);
+        delay(antirebote);
         rtc.adjust(DateTime(2022,6,5,suma_hora,suma_minutos,0));
-        EEPROM.write(suma_M,suma_minutos);
+        EEPROM.put(suma_M,suma_minutos);
         posicion=config_hora;
         parametro_actualizado();
         return;
         }
         else if(botones == VALOR_DOWN)
         { 
-        delay(100);
+        delay(antirebote);
         suma_minutos--;
         }
        if(suma_minutos>59)
@@ -1030,21 +918,16 @@ void configuracion_intervalos()
     botones=presionado();
     lcd.setCursor(3,0);
     lcd.print("INTERVALOS");
-    lcd.setCursor(0,1);
-    lcd.print("->");
-    lcd.setCursor(2,1);
-    lcd.print(intervalos_hora);
-    lcd.setCursor(8,1);
-    lcd.print("(1-12)");
+    lcd.printf("->%2d (1-12)", intervalos_hora);
     if(botones==VALOR_UP)
     {
-      delay(100);
+      delay(antirebote);
       intervalos_hora++;
     }
     else if(botones==VALOR_ENTER)
     {
-      delay(250);
-      EEPROM.write(intervalos_H,intervalos_hora);
+      delay(antirebote);
+      EEPROM.put(intervalos_H,intervalos_hora);
       EEPROM.commit();
       delay(50);
       parametro_actualizado();
@@ -1053,7 +936,7 @@ void configuracion_intervalos()
     }
     else if(botones==VALOR_DOWN)
     {
-      delay(100);
+      delay(antirebote);
       intervalos_hora--;
     }
     if(intervalos_hora>12)
@@ -1079,16 +962,14 @@ void configuracion_dispendio(){
       break;
       case 19:
         lcd.setCursor(0,0);
-        lcd.print("DISPENDIO PARA");
+        lcd.print("DISPENDIO PARA:");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(3,1);
-        lcd.print("ALEVINES");
+        lcd.print("->ALEVINES");
         if(botones==VALOR_ENTER)
         {
-          delay(100);
+          delay(antirebote);
           tiempo_apertura=45;
-          EEPROM.write(tiem_apertura,tiempo_apertura);
+          EEPROM.put(tiem_apertura,tiempo_apertura);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_dispen;
@@ -1098,16 +979,14 @@ void configuracion_dispendio(){
       break;
       case 20:
         lcd.setCursor(0,0);
-        lcd.print("DISPENDIO PARA");
+        lcd.print("DISPENDIO PARA:");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(3,1);
-        lcd.print("JUVENILES");
+        lcd.print("->JUVENILES");
         if(botones==VALOR_ENTER)
         {
-          delay(100);
+          delay(antirebote);
           tiempo_apertura=75;
-          EEPROM.write(tiem_apertura,tiempo_apertura);
+          EEPROM.put(tiem_apertura,tiempo_apertura);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_dispen;
@@ -1117,16 +996,14 @@ void configuracion_dispendio(){
       break;
       case 21:
         lcd.setCursor(0,0);
-        lcd.print("DISPENDIO PARA");
+        lcd.print("DISPENDIO PARA:");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(3,1);
-        lcd.print("ADULTOS");
+        lcd.print("->ADULTOS");
         if(botones==VALOR_ENTER)
         {
-          delay(100);
+          delay(antirebote);
           tiempo_apertura=100;
-          EEPROM.write(tiem_apertura,tiempo_apertura);
+          EEPROM.put(tiem_apertura,tiempo_apertura);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_dispen;
@@ -1136,14 +1013,12 @@ void configuracion_dispendio(){
       break;
       case 22:
         lcd.setCursor(0,0);
-        lcd.print("DISPENDIO PARA");
+        lcd.print("DISPENDIO PARA:");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(3,1);
-        lcd.print("PERSONALIZADO");
+        lcd.print("->PERSONALIZADO");
         if(botones==VALOR_ENTER)
         {
-          delay(100);
+          delay(antirebote);
           lcd.clear();
           posicion=24;
         }
@@ -1151,14 +1026,10 @@ void configuracion_dispendio(){
       break;
       case 23: posicion=22; break;
       case 24:
-        lcd.setCursor(0,0);
-        lcd.print("DURACION");
-        lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print(tiempo_apertura);
-        lcd.setCursor(8,1);
-        lcd.print("(0-32.555)");
+        lcd.setCursor(4,0);
+          lcd.print("DURACION");
+          lcd.setCursor(0,1);
+          lcd.printf("->%2d (0-32.76)", tiempo_apertura);
         if(botones==VALOR_UP)
         {
            delay(50);
@@ -1166,8 +1037,8 @@ void configuracion_dispendio(){
         }
         else if(botones==VALOR_ENTER)
         {   
-
-          EEPROM.write(tiem_apertura,tiempo_apertura);
+          delay(antirebote);
+          EEPROM.put(tiem_apertura,tiempo_apertura);
           EEPROM.commit();
           delay(20);
           parametro_actualizado();
@@ -1181,9 +1052,9 @@ void configuracion_dispendio(){
         }
         if(tiempo_apertura==-1)
         {
-          tiempo_apertura=32500;
+          tiempo_apertura=32760;
         }
-        if(tiempo_apertura>32500)
+        if(tiempo_apertura>32760)
         {  
           tiempo_apertura=0;
         }
@@ -1205,14 +1076,12 @@ void configuracion_tipo_pez(){
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("TILAPIA");
+        lcd.print("->TILAPIA");
         if(botones==VALOR_ENTER)
         {
-          delay(250);
+          delay(antirebote);
           tipo_de_pez=1;
-          EEPROM.write(TIPO_PEZ,tipo_de_pez);
+          EEPROM.put(TIPO_PEZ,tipo_de_pez);
           EEPROM.commit();
           posicion=config_pez;
           parametro_actualizado();
@@ -1224,14 +1093,12 @@ void configuracion_tipo_pez(){
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("TILAPIA ROJA");
+        lcd.print("->TILAPIA ROJA");
         if(botones==VALOR_ENTER)
         {
-          delay(250);
+          delay(antirebote);
           tipo_de_pez=2;
-          EEPROM.write(TIPO_PEZ,tipo_de_pez);
+          EEPROM.put(TIPO_PEZ,tipo_de_pez);
           EEPROM.commit();
           posicion=config_pez;
           parametro_actualizado();
@@ -1243,14 +1110,12 @@ void configuracion_tipo_pez(){
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("CAEBZA DE LEON");
+        lcd.print("->CAEBZA DE LEON");
         if(botones==VALOR_ENTER)
         {
-          delay(250);
+          delay(antirebote);
           tipo_de_pez=3;
-          EEPROM.write(TIPO_PEZ,tipo_de_pez);
+          EEPROM.put(TIPO_PEZ,tipo_de_pez);
           EEPROM.commit();
           posicion=config_pez;
           parametro_actualizado();
@@ -1262,14 +1127,12 @@ void configuracion_tipo_pez(){
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("SALMON");
+        lcd.print("->SALMON");
         if(botones==VALOR_ENTER)
         {
-           delay(250);
+           delay(antirebote);
            tipo_de_pez=4;
-           EEPROM.write(TIPO_PEZ,tipo_de_pez);
+           EEPROM.put(TIPO_PEZ,tipo_de_pez);
            EEPROM.commit();
            posicion=config_pez;
            parametro_actualizado();
@@ -1281,14 +1144,12 @@ void configuracion_tipo_pez(){
         lcd.setCursor(0,0);
         lcd.print("TIPO DE PEZ");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("BEBE DE TIBURON");
+        lcd.print("->TIBURONES");
         if(botones==VALOR_ENTER)
         {
-          delay(250);
+          delay(antirebote);
           tipo_de_pez=5;
-          EEPROM.write(TIPO_PEZ,tipo_de_pez);
+          EEPROM.put(TIPO_PEZ,tipo_de_pez);
           EEPROM.commit();
           posicion=config_pez;
           parametro_actualizado();
@@ -1304,20 +1165,19 @@ void configuracion_motores() {
   posicion=31;
   while(posicion>=31)
   {
-    
+    botones=presionado();
     switch (posicion)
     {
       case 31: posicion=32; break;
       case 32: 
+        delay(antirebote);
         lcd.setCursor(2,0);
         lcd.print("*CONFIGURAR*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("M1");
+        lcd.print("->M1");
         if(botones==VALOR_ENTER)
         {
-          delay(250);
+          delay(antirebote);
           lcd.clear();
           posicion=38;
         }
@@ -1327,12 +1187,10 @@ void configuracion_motores() {
         lcd.setCursor(2,0);
         lcd.print("*CONFIGURAR*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("M2");
+        lcd.print("->M2");
         if(botones==VALOR_ENTER)
         {
-          delay(250);
+          delay(antirebote);
           lcd.clear();
           posicion=42;
         }
@@ -1342,12 +1200,10 @@ void configuracion_motores() {
         lcd.setCursor(2,0);
         lcd.print("*CONFIGURAR*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("M3");  
+        lcd.print("->M3");  
         if(botones==VALOR_ENTER)
         {
-          delay(250);
+          delay(antirebote);
           lcd.clear();
           posicion=46;
         }
@@ -1357,12 +1213,10 @@ void configuracion_motores() {
         lcd.setCursor(2,0);
         lcd.print("*CONFIGURAR*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("M4");
+        lcd.print("->M4");
         if(botones==VALOR_ENTER)
         {
-          delay(250);
+          delay(antirebote);
           lcd.clear(); 
           posicion=50;
         }
@@ -1375,13 +1229,11 @@ void configuracion_motores() {
         lcd.setCursor(6,0);
         lcd.print("*M1*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("ACTIVAR");
+        lcd.print("->ACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           M1_available=true;
-          EEPROM.write(M1_status,M1_available);
+          EEPROM.put(M1_status,M1_available);
           
           EEPROM.commit();
           parametro_actualizado();
@@ -1394,13 +1246,11 @@ void configuracion_motores() {
         lcd.setCursor(6,0);
         lcd.print("*M1*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("DESACTIVAR");
+        lcd.print("->DESACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           M1_available=false;
-          EEPROM.write(M1_status,M1_available);
+          EEPROM.put(M1_status,M1_available);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
@@ -1415,13 +1265,11 @@ void configuracion_motores() {
         lcd.setCursor(6,0);
         lcd.print("*M2*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("ACTIVAR");
+        lcd.print("->ACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           M2_available=true;
-          EEPROM.write(M2_status,M2_available);
+          EEPROM.put(M2_status,M2_available);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
@@ -1433,13 +1281,11 @@ void configuracion_motores() {
         lcd.setCursor(6,0);
         lcd.print("*M2*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("DESACTIVAR");
+        lcd.print("->DESACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           M2_available=false;
-          EEPROM.write(M2_status,M2_available);
+          EEPROM.put(M2_status,M2_available);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
@@ -1454,13 +1300,11 @@ void configuracion_motores() {
         lcd.setCursor(6,0);
         lcd.print("*M3*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("ACTIVAR");
+        lcd.print("->ACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           M3_available=true;
-          EEPROM.write(M3_status,M3_available);
+          EEPROM.put(M3_status,M3_available);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
@@ -1472,13 +1316,11 @@ void configuracion_motores() {
         lcd.setCursor(6,0);
         lcd.print("*M3*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("DESACTIVAR");
+        lcd.print("->DESACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           M3_available=false;
-          EEPROM.write(M3_status,M3_available);
+          EEPROM.put(M3_status,M3_available);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
@@ -1493,13 +1335,11 @@ void configuracion_motores() {
         lcd.setCursor(6,0);
         lcd.print("*M4*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("ACTIVAR");
+        lcd.print("->ACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           M4_available=true;
-          EEPROM.write(M4_status,M4_available);
+          EEPROM.put(M4_status,M4_available);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
@@ -1511,13 +1351,11 @@ void configuracion_motores() {
         lcd.setCursor(6,0);
         lcd.print("*M4*");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("DESACTIVAR");
+        lcd.print("->DESACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           M4_available=false;
-          EEPROM.write(M4_status,M4_available);
+          EEPROM.put(M4_status,M4_available);
           EEPROM.commit();
           parametro_actualizado();
           posicion=config_motores;
@@ -1539,16 +1377,14 @@ void bat_metter(){
         posicion=53;
       break;
       case 53:
-        lcd.setCursor(6,0);
+        lcd.setCursor(0,0);
         lcd.print("MEDIDOR BATERIA");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("ACTIVAR");
+        lcd.print("->ACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           battery_metter_available=true;
-          EEPROM.write(battery_status,battery_metter_available);
+          EEPROM.put(battery_status,battery_metter_available);
           EEPROM.commit();
           parametro_actualizado();
           delay(50);
@@ -1556,7 +1392,8 @@ void bat_metter(){
         }
         if(botones==VALOR_DOWN)
         {
-          delay(100);
+          delay(antirebote);
+          lcd.clear();
           posicion++;
         }
       break;
@@ -1564,13 +1401,11 @@ void bat_metter(){
         lcd.setCursor(6,0);
         lcd.print("MEDIDOR BATERIA");
         lcd.setCursor(0,1);
-        lcd.print("->");
-        lcd.setCursor(2,1);
-        lcd.print("DESACTIVAR");
+        lcd.print("->DESACTIVAR");
         if(botones==VALOR_ENTER){
-          delay(250);
+          delay(antirebote);
           battery_metter_available=false;
-          EEPROM.write(battery_status,battery_metter_available);
+          EEPROM.put(battery_status,battery_metter_available);
           EEPROM.commit();
           parametro_actualizado();
           delay(50);
@@ -1578,7 +1413,7 @@ void bat_metter(){
         }
         else if(botones==VALOR_UP)
         {
-          delay(100);
+          delay(antirebote);
           posicion--;
         }
       break;  
