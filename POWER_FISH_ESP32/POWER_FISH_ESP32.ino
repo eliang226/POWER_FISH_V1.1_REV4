@@ -41,7 +41,7 @@ bool M4_available = true;
 #define PIN_DISPENSE 4
 #define BAT_PIN 34
 #define buzzer  15 
-#define antirebote 150
+#define antirebote 100
 const short VALOR_UP=1;
 const short VALOR_ENTER=2;
 const short VALOR_DOWN=3;
@@ -156,7 +156,7 @@ void setup()
     EEPROM.put(0,ultima_corrida);
   }
   ultima_corrida = EEPROM.read(ultim_corrid); // recupera la ultima corrida en la memoria eeprom 
-  ///////////////////////////////////bienvenida////////////// 
+  ////////////////////////bienvenida////////////// 
   digitalWrite(buzzer, HIGH);
   delay(500);
   digitalWrite(buzzer,LOW);
@@ -343,20 +343,20 @@ void display_posicion(byte lower_posicion, byte upper_posicion)
 void parametro_actualizado()
 {
 	lcd.clear();
-	lcd.setCursor(0, 0);
+	lcd.setCursor(4, 0);
 	lcd.print("PARAMETRO");
-	lcd.setCursor(0, 1);
+	lcd.setCursor(3, 1);
 	lcd.print("ACTUALIZADO");
 	delay(2000);
 	lcd.clear();
 }
 void DISPENDIO() // funcion de abrir y cerrar la compuerta
 {
-
-  delay(antirebote);
   lcd.clear();
   lcd.setCursor(2,0);
   lcd.print("*DISPENSANDO*");
+  lcd.setCursor(3,1);
+  lcd.print("*ALIMENTO*");
   /////////// avsio de que la compuerta abrira/////////////////////
   digitalWrite(buzzer, HIGH);
   delay(750);
@@ -655,8 +655,15 @@ void pantalla_principal(){
       EEPROM.read(intervalos_H);
       lcd.setCursor(3,0);
       lcd.print("INTERVALOS:");
-      lcd.setCursor(5,1);
-      lcd.printf("C/%dHORA",intervalos_hora);
+      if(intervalos_hora>1)
+      {
+        lcd.setCursor(2,1);
+        lcd.printf("CADA: %d HORAS",intervalos_hora);        
+      }
+      else{
+        lcd.setCursor(3,1);
+        lcd.printf("CADA: %d HORA",intervalos_hora);
+      }
       display_posicion(horas,configuracion);
     break;
     case tip_pez:
@@ -839,9 +846,7 @@ void configuracion_hora()
       lcd.setCursor(6,0);
       lcd.print("HORA");
       lcd.setCursor(5,1);
-      lcd.print(suma_hora);
-      lcd.setCursor(7,1);
-      lcd.print(":");
+      lcd.printf("%02d:",suma_hora);
       if(botones==VALOR_UP)
      {
         delay(antirebote);
@@ -874,11 +879,7 @@ void configuracion_hora()
         lcd.setCursor(6,0);
         lcd.print("HORA");
         lcd.setCursor(5,1);
-        lcd.print(suma_hora);
-        lcd.setCursor(7,1);
-        lcd.print(":");
-        lcd.setCursor(8,1);
-        lcd.print(suma_minutos);
+        lcd.printf("%02d:%02d",suma_hora,suma_minutos);
         if(botones == VALOR_UP)
         {
           delay(antirebote);
@@ -918,7 +919,8 @@ void configuracion_intervalos()
     botones=presionado();
     lcd.setCursor(3,0);
     lcd.print("INTERVALOS");
-    lcd.printf("->%2d (1-12)", intervalos_hora);
+    lcd.setCursor(0,1);    
+    lcd.printf("->%2d    (1-12)", intervalos_hora);
     if(botones==VALOR_UP)
     {
       delay(antirebote);
@@ -1398,7 +1400,7 @@ void bat_metter(){
         }
       break;
       case 54:
-        lcd.setCursor(6,0);
+        lcd.setCursor(0,0);
         lcd.print("MEDIDOR BATERIA");
         lcd.setCursor(0,1);
         lcd.print("->DESACTIVAR");
