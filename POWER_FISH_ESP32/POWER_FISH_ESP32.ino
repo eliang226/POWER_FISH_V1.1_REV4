@@ -252,9 +252,7 @@ void loop()
       Comando_serial();
     }
     if (SerialBT.available())
-    {
-      commandBT = SerialBT.readStringUntil('\n'); // lee la cadena hasta el caracter de nueva
-      commandBT.trim();                           // elimina los espacios en blanco al principio y al final de la cadena
+    {                         // elimina los espacios en blanco al principio y al final de la cadena
       comandos_bluetooth();
     }
   }
@@ -335,7 +333,7 @@ void display_posicion(byte lower_posicion, byte upper_posicion)
   {
     if (posicion < upper_posicion)
     {
-      delay(150);
+      delay(antirebote);
       lcd.clear();
       posicion++;
       milisegundos = 0;
@@ -347,7 +345,7 @@ void display_posicion(byte lower_posicion, byte upper_posicion)
   {
     if (posicion > lower_posicion)
     {
-      delay(150);
+      delay(antirebote);
       lcd.clear();
       posicion--;
       milisegundos = 0;
@@ -467,71 +465,41 @@ void serialEvent() // funcion que se activa al recibir algo por el puerto serie/
 void Comando_serial()
 {
   DateTime fecha = rtc.now();      // funcion que devuelve fecha y horario
-  if (entradaSerial == "estado\n") // enviame todas las informaciones de la tarjeta
+   if (entradaSerial == "estado\n")
   {
-    // estado(fecha);
-    Serial.println("hora:");
-    Serial.println(hora);
-    Serial.println("minutos:");
-    Serial.println(fecha.minute());
-    Serial.println("ultima comida fue:");
-    Serial.println(ultima_comida);
-    Serial.println("proxima comida a las:");
-    if (ultima_comida + intervalos_hora >= 17)
+    Serial.printf("hora: %02d",hora);
+    Serial.println();
+    Serial.printf("minutos: %02d",minutos);
+    Serial.println();
+    Serial.printf("ultima comida fue: %02d",ultima_comida);
+    Serial.println();
+    Serial.printf("proxima comida a las: %02d",proxima_comida);
+    Serial.println();    
+    if (proxima_comida >= 17)
     {
       Serial.print("(fuera de horario)");
     }
-    Serial.println(ultima_comida + intervalos_hora);
-    Serial.println("tamaño:");
     switch (tiempo_apertura)
     {
-    case 45:
-      Serial.println("pequeños");
-      break;
-    case 75:
-      Serial.println("medianos");
-      break;
-    case 100:
-      Serial.println("grandes");
-      break;
-    default:
-      Serial.println("personalizado");
-      break;
+      case 45:Serial.print("tamaño: pequeños");break;
+      case 75:Serial.print("tamaño: medianos");break;
+      case 100:Serial.print("tamaño: grandes");break;
+      default:Serial.print("tamaño: personalizado");break;
     }
-    Serial.println("TIPO DE PEZ:");
+    Serial.println();
     switch (tipo_de_pez)
     {
-    case 1:
-      Serial.println("TILAPIA");
-      break;
-    case 2:
-      Serial.println("TILAPIA ROJA");
-      break;
-    case 3:
-      Serial.println("CABEZA DE LEON");
-      break;
-    case 4:
-      Serial.println("SALMON");
-      break;
-    case 5:
-      Serial.println("BEBE DE TIBURON");
-      break;
-    case 6:
-      Serial.println("KOI");
-      break;
-    case 7:
-      Serial.println("PETRA");
-      break;
-    default:
-      Serial.println("NO SELECCIONADO");
-      break;
+      case 1:Serial.print("TIPO DE PEZ: TILAPIA");break;
+      case 2:Serial.print("TIPO DE PEZ: TILAPIA ROJA");break;
+      case 3:Serial.print("TIPO DE PEZ: CABEZA DE LEON");break;
+      case 4:Serial.print("TIPO DE PEZ: SALMON");break;
+      case 5:Serial.print("TIPO DE PEZ: BEBE DE TIBURON");break;
+      case 6:Serial.print("TIPO DE PEZ: KOI");break;
+      case 7:Serial.print("TIPO DE PEZ: PETRA");break;
+      default:Serial.print("NO SELECCIONADO");break;
     }
-    Serial.println("volatage:");
-    Serial.println(voltage);
-    Serial.print("(");
-    Serial.print(porcentaje_bateria);
-    Serial.print("%");
-    Serial.print(")");
+    Serial.println();
+    Serial.printf("voltaje:%d(%d%%)",voltage,porcentaje_bateria);
   }
   else if (entradaSerial == "dispensa\n") // dispensa desde la pc
   {
@@ -566,42 +534,35 @@ void comandos_bluetooth()
     SerialBT.println();
     SerialBT.printf("minutos: %02d",minutos);
     SerialBT.println();
-    SerialBT.printf("ultima comida fue: %2d",ultima_comida);
+    SerialBT.printf("ultima comida fue: %02d",ultima_comida);
     SerialBT.println();
-    SerialBT.printf("proxima comida a las: %2d",proxima_comida);
+    SerialBT.printf("proxima comida a las: %02d",proxima_comida);
+    SerialBT.println();    
     if (proxima_comida >= 17)
     {
       SerialBT.print("(fuera de horario)");
     }
-    SerialBT.println("tamaño:");
-    SerialBT.println();
     switch (tiempo_apertura)
     {
-    case 45:SerialBT.print("pequeños");break;
-    case 75:SerialBT.print("medianos");break;
-    case 100:SerialBT.print("grandes");break;
-    default:SerialBT.print("personalizado");break;
+      case 45:SerialBT.print("tamaño: pequeños");break;
+      case 75:SerialBT.print("tamaño: medianos");break;
+      case 100:SerialBT.print("tamaño: grandes");break;
+      default:SerialBT.print("tamaño: personalizado");break;
     }
-    SerialBT.println("TIPO DE PEZ:");
     SerialBT.println();
     switch (tipo_de_pez)
     {
-    case 1:SerialBT.print("TILAPIA");break;
-    case 2:SerialBT.print("TILAPIA ROJA");break;
-    case 3:SerialBT.print("CABEZA DE LEON");break;
-    case 4:SerialBT.print("SALMON");break;
-    case 5:SerialBT.print("BEBE DE TIBURON");break;
-    case 6:SerialBT.print("KOI");break;
-    case 7:SerialBT.print("PETRA");break;
-    default:SerialBT.print("NO SELECCIONADO");break;
+      case 1:SerialBT.print("TIPO DE PEZ: TILAPIA");break;
+      case 2:SerialBT.print("TIPO DE PEZ: TILAPIA ROJA");break;
+      case 3:SerialBT.print("TIPO DE PEZ: CABEZA DE LEON");break;
+      case 4:SerialBT.print("TIPO DE PEZ: SALMON");break;
+      case 5:SerialBT.print("TIPO DE PEZ: BEBE DE TIBURON");break;
+      case 6:SerialBT.print("TIPO DE PEZ: KOI");break;
+      case 7:SerialBT.print("TIPO DE PEZ: PETRA");break;
+      default:SerialBT.print("NO SELECCIONADO");break;
     }
-
-    SerialBT.println("voltaje:");
-    SerialBT.println(voltage);
-    SerialBT.print("(");
-    SerialBT.print(porcentaje_bateria);
-    SerialBT.print("%");
-    SerialBT.print(")");
+    SerialBT.println();
+    SerialBT.printf("voltaje:%d(%d%%)",voltage,porcentaje_bateria);
   }
   else if (commandBT == "dispensa")
   {
@@ -615,11 +576,11 @@ void comandos_bluetooth()
     SerialBT.println("probando motores");
     servo_enable = 1;
     prueba_motores();
+    SerialBT.println("probando motores finalizado");
   }
   else if (commandBT == "ajusta hora")
   {
-    SerialBT.print("AJUSTANDO HORA");
-    delay(50);
+    SerialBT.println("AJUSTANDO HORA");
     rtc.adjust(DateTime(__DATE__, __TIME__));
     SerialBT.println("HORA AJUSTADA");
   }
