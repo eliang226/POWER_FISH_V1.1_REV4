@@ -64,7 +64,8 @@ bool entradaCompleta = false; // Indicar si el String está completo
 //////////////////////////////////////////////////////////////////
 int tiempo_apertura = 1000;
 short intervalos_hora = 1;
-short ultima_corrida = 0;
+short ultima_comida = 0;
+short proxima_comida= ultima_comida + intervalos_hora; 
 short tipo_de_pez = 0;
 short pos = 0;
 short hora = 0;
@@ -166,15 +167,15 @@ void setup()
   minutos = fecha.minute();
   if (hora >= 9 && hora <= 17)
   {
-    ultima_corrida = hora;
-    EEPROM.put(ultim_corrid, ultima_corrida);
+    ultima_comida = hora;
+    EEPROM.put(ultim_corrid, ultima_comida);
   }
   if (EEPROM.read(ultim_corrid) == 255)
   {
-    ultima_corrida = hora;
-    EEPROM.put(0, ultima_corrida);
+    ultima_comida = hora;
+    EEPROM.put(0, ultima_comida);
   }
-  ultima_corrida = EEPROM.read(ultim_corrid); // recupera la ultima corrida en la memoria eeprom
+  ultima_comida = EEPROM.read(ultim_corrid); // recupera la ultima corrida en la memoria eeprom
   ////////////////////////bienvenida//////////////
   digitalWrite(buzzer, HIGH);
   delay(500);
@@ -214,18 +215,16 @@ void loop()
     servo_enable = 1;
     DISPENDIO(); // inicia el proceso de abrir la compuerta
   }
-  if ((ultima_corrida + intervalos_hora == hora && fecha.minute() == 1) || (fecha.hour() == 9 && fecha.minute() == 0 && fecha.second() > 0 && fecha.second() < 2))
+  if ((ultima_comida + intervalos_hora == hora && fecha.minute() == 1) || (fecha.hour() == 9 && fecha.minute() == 0 && fecha.second() > 0 && fecha.second() < 2))
   {
     Serial.println("funcione");
     servo_enable = 1;
     DISPENDIO(); // inicia el proceso de abrir la compuerta
-    ultima_corrida = hora;
-    EEPROM.put(ultim_corrid, ultima_corrida);
+    ultima_comida = hora;
+    EEPROM.put(ultim_corrid, ultima_comida);
   }
   if (SerialBT.available())
-  {
-    commandBT = SerialBT.readStringUntil('\n'); // lee la cadena hasta el caracter de nueva línea
-    commandBT.trim();                           // elimina los espacios en blanco al principio y al final de la cadena
+  { // elimina los espacios en blanco al principio y al final de la cadena
     comandos_bluetooth();
   }
   if (entradaCompleta == HIGH) // comunicacion serial durante las horas de trabajo
@@ -270,7 +269,7 @@ void bajo_voltage()
     lcd.clear();
     while (alarma == true) // mientras la alarma esté activa y no hayan pasado más de 60 segundos
     {
-      botones  = presionado();
+      botones = presionado();
       volt_bat = analogRead(BAT_PIN);
       voltage = map(volt_bat += 40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
       lcd.setCursor(1, 0);
@@ -476,32 +475,56 @@ void Comando_serial()
     Serial.println("minutos:");
     Serial.println(fecha.minute());
     Serial.println("ultima comida fue:");
-    Serial.println(ultima_corrida);
+    Serial.println(ultima_comida);
     Serial.println("proxima comida a las:");
-    if (ultima_corrida + intervalos_hora >= 17)
+    if (ultima_comida + intervalos_hora >= 17)
     {
       Serial.print("(fuera de horario)");
     }
-    Serial.println(ultima_corrida + intervalos_hora);
+    Serial.println(ultima_comida + intervalos_hora);
     Serial.println("tamaño:");
     switch (tiempo_apertura)
     {
-      case 45:  Serial.println("pequeños");      break;
-      case 75:  Serial.println("medianos");      break;
-      case 100: Serial.println("grandes");       break;
-      default:  Serial.println("personalizado"); break;
+    case 45:
+      Serial.println("pequeños");
+      break;
+    case 75:
+      Serial.println("medianos");
+      break;
+    case 100:
+      Serial.println("grandes");
+      break;
+    default:
+      Serial.println("personalizado");
+      break;
     }
     Serial.println("TIPO DE PEZ:");
     switch (tipo_de_pez)
     {
-      case 1:  Serial.println("TILAPIA");          break;
-      case 2:  Serial.println("TILAPIA ROJA");     break;
-      case 3:  Serial.println("CABEZA DE LEON");   break;
-      case 4:  Serial.println("SALMON");           break;
-      case 5:  Serial.println("BEBE DE TIBURON");  break;
-      case 6:  Serial.println("KOI");              break;
-      case 7:  Serial.println("PETRA");            break;
-      default: Serial.println("NO SELECCIONADO");  break;
+    case 1:
+      Serial.println("TILAPIA");
+      break;
+    case 2:
+      Serial.println("TILAPIA ROJA");
+      break;
+    case 3:
+      Serial.println("CABEZA DE LEON");
+      break;
+    case 4:
+      Serial.println("SALMON");
+      break;
+    case 5:
+      Serial.println("BEBE DE TIBURON");
+      break;
+    case 6:
+      Serial.println("KOI");
+      break;
+    case 7:
+      Serial.println("PETRA");
+      break;
+    default:
+      Serial.println("NO SELECCIONADO");
+      break;
     }
     Serial.println("volatage:");
     Serial.println(voltage);
@@ -534,43 +557,43 @@ void Comando_serial()
 }
 void comandos_bluetooth()
 {
+  commandBT = SerialBT.readStringUntil('\n'); // lee la cadena hasta el caracter de nueva línea
+  commandBT.trim();
   DateTime fecha = rtc.now(); // funcion que devuelve fecha y horario
   if (commandBT == "estado")
   {
-    SerialBT.println("hora:");
-    SerialBT.println(hora);
-    SerialBT.println("minutos:");
-    SerialBT.println(fecha.minute());
-    SerialBT.println("ultima comida fue:");
-    SerialBT.println(ultima_corrida);
-    SerialBT.println("proxima comida a las:");
-    if (ultima_corrida + intervalos_hora >= 17)
+    SerialBT.printf("hora: %02d",hora);
+    SerialBT.println();
+    SerialBT.printf("minutos: %02d",minutos);
+    SerialBT.println();
+    SerialBT.printf("ultima comida fue: %2d",ultima_comida);
+    SerialBT.println();
+    SerialBT.printf("proxima comida a las: %2d",proxima_comida);
+    if (proxima_comida >= 17)
     {
       SerialBT.print("(fuera de horario)");
     }
-    SerialBT.println(ultima_corrida + intervalos_hora);
     SerialBT.println("tamaño:");
+    SerialBT.println();
     switch (tiempo_apertura)
     {
-      case 45: SerialBT.println("pequeños"); break;
-      case 75: SerialBT.println("medianos"); break;
-      case 100: SerialBT.println("grandes"); break;
-      default: SerialBT.println("personalizado"); break;
-
+    case 45:SerialBT.print("pequeños");break;
+    case 75:SerialBT.print("medianos");break;
+    case 100:SerialBT.print("grandes");break;
+    default:SerialBT.print("personalizado");break;
     }
-
     SerialBT.println("TIPO DE PEZ:");
-
+    SerialBT.println();
     switch (tipo_de_pez)
     {
-    case 1: SerialBT.println("TILAPIA");          break;
-    case 2: SerialBT.println("TILAPIA ROJA");     break;
-    case 3: SerialBT.println("CABEZA DE LEON");   break;
-    case 4: SerialBT.println("SALMON");           break;
-    case 5: SerialBT.println("BEBE DE TIBURON");  break;
-    case 6: SerialBT.println("KOI");              break;
-    case 7: SerialBT.println("PETRA");            break;
-    default: SerialBT.println("NO SELECCIONADO"); break;
+    case 1:SerialBT.print("TILAPIA");break;
+    case 2:SerialBT.print("TILAPIA ROJA");break;
+    case 3:SerialBT.print("CABEZA DE LEON");break;
+    case 4:SerialBT.print("SALMON");break;
+    case 5:SerialBT.print("BEBE DE TIBURON");break;
+    case 6:SerialBT.print("KOI");break;
+    case 7:SerialBT.print("PETRA");break;
+    default:SerialBT.print("NO SELECCIONADO");break;
     }
 
     SerialBT.println("voltaje:");
@@ -694,9 +717,9 @@ void pantalla_principal()
     break;
   case prox_comida:
     lcd.setCursor(0, 0);
-    lcd.printf("ULT. COMIDA: %d", ultima_corrida);
+    lcd.printf("ULT. COMIDA: %d", ultima_comida);
     lcd.setCursor(0, 1);
-    lcd.printf("PROX. COMIDA: %d", ultima_corrida + intervalos_hora);
+    lcd.printf("PROX. COMIDA: %d", proxima_comida);
     display_posicion(horas, configuracion);
     break;
   case intervalo:
@@ -722,14 +745,30 @@ void pantalla_principal()
     lcd.setCursor(0, 1);
     switch (tipo_de_pez)
     {
-      case 1: lcd.print("TILAPIA");          break;
-      case 2: lcd.print("TILAPIA ROJA");     break;
-      case 3: lcd.print("CABEZA DE LEON");   break;
-      case 4: lcd.print("SALMON");           break;
-      case 5: lcd.print("BEBE DE TIBURON");  break;
-      case 6: lcd.print("KOI");              break;
-      case 7: lcd.print("PETRA");            break;
-      default:lcd.print("NO SELECCIONADO"); break;
+    case 1:
+      lcd.print("TILAPIA");
+      break;
+    case 2:
+      lcd.print("TILAPIA ROJA");
+      break;
+    case 3:
+      lcd.print("CABEZA DE LEON");
+      break;
+    case 4:
+      lcd.print("SALMON");
+      break;
+    case 5:
+      lcd.print("BEBE DE TIBURON");
+      break;
+    case 6:
+      lcd.print("KOI");
+      break;
+    case 7:
+      lcd.print("PETRA");
+      break;
+    default:
+      lcd.print("NO SELECCIONADO");
+      break;
     }
     display_posicion(horas, configuracion);
     break;
@@ -738,9 +777,12 @@ void pantalla_principal()
     lcd.setCursor(0, 0);
     lcd.print("DISPENDIO PARA:");
     lcd.setCursor(0, 1);
-      if      (tiempo_apertura == 45)   lcd.print("ALEVINE");
-      else if (tiempo_apertura == 75)   lcd.print("JUVENILES");
-      else if (tiempo_apertura == 100)  lcd.print("ADULTOS");
+    if (tiempo_apertura == 45)
+      lcd.print("ALEVINE");
+    else if (tiempo_apertura == 75)
+      lcd.print("JUVENILES");
+    else if (tiempo_apertura == 100)
+      lcd.print("ADULTOS");
     else
     {
       lcd.setCursor(0, 1);
