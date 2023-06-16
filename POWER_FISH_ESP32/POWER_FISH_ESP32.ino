@@ -215,7 +215,7 @@ void loop()
     servo_enable = 1;
     DISPENDIO(); // inicia el proceso de abrir la compuerta
   }
-  if ((ultima_comida + intervalos_hora == hora && fecha.minute() == 1) || (fecha.hour() == 9 && fecha.minute() == 0 && fecha.second() > 0 && fecha.second() < 2))
+  if ((proxima_comida == hora && minutos == 1) || (hora == 9 && minutos == 0 && fecha.second() > 0 && fecha.second() < 2))
   {
     Serial.println("DISPENDIO");
     servo_enable = 1;
