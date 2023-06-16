@@ -157,8 +157,7 @@ void setup()
     lcd.setCursor(0, 1);
     lcd.print("*PRESIONE RESET*");                // si falla la inicializacion del modulo
     Serial.println("Modulo RTC no encontrado !"); // muestra mensaje de error
-    while (1)
-      ; // bucle infinito que detiene ejecucion del programa
+    while (1); // bucle infinito que detiene ejecucion del programa
   }
   // rtc.adjust(DateTime(__DATE__, __TIME__)); // comentar al momento de compilar
   // rtc.adjust(DateTime(2022,6,5,8,59,0));
