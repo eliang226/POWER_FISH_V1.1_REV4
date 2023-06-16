@@ -217,7 +217,7 @@ void loop()
   }
   if ((ultima_comida + intervalos_hora == hora && fecha.minute() == 1) || (fecha.hour() == 9 && fecha.minute() == 0 && fecha.second() > 0 && fecha.second() < 2))
   {
-    Serial.println("funcione");
+    Serial.println("DISPENDIO");
     servo_enable = 1;
     DISPENDIO(); // inicia el proceso de abrir la compuerta
     ultima_comida = hora;
@@ -651,10 +651,10 @@ void pantalla_principal()
   }
   switch (posicion)
   {
-  case -1:
+   case -1:
     posicion = horas;
     break;
-  case horas:
+   case horas:
     snprintf(buffer, sizeof(buffer), "HORA:%02d:%02d", fecha.hour(), minutos);
     lcd.setCursor(0, 0);
     lcd.print(buffer);
@@ -676,14 +676,14 @@ void pantalla_principal()
     milisegundos++;
     display_posicion(horas, configuracion);
     break;
-  case prox_comida:
-    lcd.setCursor(0, 0);
-    lcd.printf("ULT. COMIDA: %d", ultima_comida);
-    lcd.setCursor(0, 1);
-    lcd.printf("PROX. COMIDA: %d", proxima_comida);
-    display_posicion(horas, configuracion);
+   case prox_comida:
+      lcd.setCursor(0, 0);
+      lcd.printf("ULT. COMIDA: %d", ultima_comida);
+      lcd.setCursor(0, 1);
+      lcd.printf("PROX. COMIDA: %d", proxima_comida);
+      display_posicion(horas, configuracion);
     break;
-  case intervalo:
+   case intervalo:
     EEPROM.read(intervalos_H);
     lcd.setCursor(3, 0);
     lcd.print("INTERVALOS:");
@@ -699,51 +699,32 @@ void pantalla_principal()
     }
     display_posicion(horas, configuracion);
     break;
-  case tip_pez:
+   case tip_pez:
     EEPROM.read(TIPO_PEZ);
     lcd.setCursor(0, 0);
     lcd.print("TIPO DE PEZ:");
     lcd.setCursor(0, 1);
     switch (tipo_de_pez)
     {
-    case 1:
-      lcd.print("TILAPIA");
-      break;
-    case 2:
-      lcd.print("TILAPIA ROJA");
-      break;
-    case 3:
-      lcd.print("CABEZA DE LEON");
-      break;
-    case 4:
-      lcd.print("SALMON");
-      break;
-    case 5:
-      lcd.print("BEBE DE TIBURON");
-      break;
-    case 6:
-      lcd.print("KOI");
-      break;
-    case 7:
-      lcd.print("PETRA");
-      break;
-    default:
-      lcd.print("NO SELECCIONADO");
-      break;
+      case 1:lcd.print("TILAPIA");break;
+      case 2:lcd.print("TILAPIA ROJA");break;
+      case 3:lcd.print("CABEZA DE LEON");break;
+      case 4:lcd.print("SALMON");break;
+      case 5:lcd.print("BEBE DE TIBURON");break;
+      case 6:lcd.print("KOI");break;
+      case 7:lcd.print("PETRA");break;
+      default:lcd.print("NO SELECCIONADO");break;
     }
     display_posicion(horas, configuracion);
-    break;
-  case cantidad:
+   break;
+   case cantidad:
     tiempo_apertura = EEPROM.get(tiem_apertura, tiempo_apertura);
     lcd.setCursor(0, 0);
     lcd.print("DISPENDIO PARA:");
     lcd.setCursor(0, 1);
-    if (tiempo_apertura == 45)
-      lcd.print("ALEVINE");
-    else if (tiempo_apertura == 75)
-      lcd.print("JUVENILES");
-    else if (tiempo_apertura == 100)
-      lcd.print("ADULTOS");
+    if      (tiempo_apertura == 45)  lcd.print("ALEVINE");
+    else if (tiempo_apertura == 75)  lcd.print("JUVENILES");
+    else if (tiempo_apertura == 100) lcd.print("ADULTOS");
     else
     {
       lcd.setCursor(0, 1);
@@ -754,7 +735,7 @@ void pantalla_principal()
     }
     display_posicion(horas, configuracion);
     break;
-  case configuracion:
+   case configuracion:
     lcd.setCursor(0, 0);
     lcd.print("CONFIGURACION");
     lcd.setCursor(0, 1);
@@ -769,7 +750,7 @@ void pantalla_principal()
     }
     display_posicion(horas, configuracion);
     break;
-  case 6:
+   case 6:
     posicion = configuracion;
     break;
   }
