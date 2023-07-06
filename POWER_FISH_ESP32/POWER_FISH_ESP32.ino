@@ -67,6 +67,9 @@ bool entradaCompleta = false; // Indicar si el String está completo
 #define Pin_Sensor_Temp 5
 OneWire oneWire(Pin_Sensor_Temp);
 DallasTemperature TempSensor(&oneWire);
+float T_MAX = 0.0;
+float T_MIN = 0.0;
+bool Temperature_alarm = false;
 float Temperature=0.0;
 int tiempo_apertura = 1000;
 short intervalos_hora = 1;
@@ -109,6 +112,16 @@ enum config{
   config_motores,
   medidor_bat,
   salir
+};
+enum tipo_de_pez
+{
+  tilapia=1,
+  tilapia_roja,
+  cabeza_de_leon,
+  salmon,
+  bebe_de_tiburon,
+  koi,
+  petra, 
 };
 ///////////////////////////////////////////////////////////////////////
 void setup()
@@ -204,6 +217,15 @@ void setup()
   M2_available = EEPROM.read(M2_status);
   M3_available = EEPROM.read(M3_status);
   M4_available = EEPROM.read(M4_status);
+  switch (tipo_de_pez)
+  {
+  case tilapia:
+    T_MAX=32.5;
+    T_MIN=22.0;
+  break;
+  default:
+    break;
+  }
   /////////////////////////////////////////////
 }
 void loop()
@@ -219,6 +241,31 @@ void loop()
   }
   TempSensor.requestTemperatures();
   Temperature= TempSensor.getTempCByIndex(0);
+  if(Temperature>T_MAX)
+  {
+
+      lcd.clear();
+      lcd.setCursor(1,0);
+      lcd.print("*TEMPERATURA*");
+      lcd.setCursor(5,1);
+      lcd.print("*ALTA*");
+      digitalWrite(buzzer,HIGH);
+      delay(1500);
+      digitalWrite(buzzer,LOW);
+      lcd.clear();
+  }
+  if(Temperature<T_MIN)
+  {
+    lcd.clear();
+    lcd.setCursor(1,0);
+    lcd.print("*TEMPERATURA*");
+    lcd.setCursor(5,1);
+    lcd.print("*BAJA*");
+    digitalWrite(buzzer,HIGH);
+    delay(1500);
+    digitalWrite(buzzer,LOW);
+    lcd.clear();
+  }   
   pantalla_principal();
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   if (dispendio == true) // incia el proceso de alimentacion manualmente
@@ -344,6 +391,7 @@ byte presionado()
 }
 void display_posicion(byte lower_posicion, byte upper_posicion)
 {
+  
   if (botones == VALOR_DOWN)
   {
     if (posicion < upper_posicion)
@@ -720,15 +768,14 @@ void pantalla_principal()
       lcd.setCursor(0, 1);
       switch (tipo_de_pez)
       {
-        case 1:
-        lcd.printf("TILAPIA T:%.2fC", Temperature);
-        case 2:lcd.print("TILAPIA ROJA");break;
-        case 3:lcd.print("CABEZA DE LEON");break;
-        case 4:lcd.print("SALMON");break;
-        case 5:lcd.print("BEBE DE TIBURON");break;
-        case 6:lcd.print("KOI");break;
-        case 7:lcd.print("PETRA");break;
-        default:lcd.print("NO SELECCIONADO");break;
+        case tilapia:         lcd.printf("TILAPIA T:%.2fC", Temperature); break;
+        case tilapia_roja:    lcd.print("TILAPIA ROJA");break;
+        case cabeza_de_leon:  lcd.print("CABEZA DE LEON");break;
+        case salmon:          lcd.print("SALMON");break;
+        case bebe_de_tiburon: lcd.print("BEBE DE TIBURON");break;
+        case koi :            lcd.print("KOI");break;
+        case petra:           lcd.print("PETRA");break;
+        default:              lcd.print("NO SELECCIONADO");break;
       }
       display_posicion(horas, configuracion);
     break;
@@ -1143,6 +1190,8 @@ void configuracion_tipo_pez()
         tipo_de_pez = 1;
         EEPROM.put(TIPO_PEZ, tipo_de_pez);
         EEPROM.commit();
+        T_MAX=32.5;
+        T_MIN=22.0;
         posicion = config_pez;
         parametro_actualizado();
         return;
