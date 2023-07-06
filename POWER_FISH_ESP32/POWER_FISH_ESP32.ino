@@ -7,6 +7,8 @@
 #include <Wire.h>   // incluye libreria para interfaz I2C
 #include <RTClib.h> // incluye libreria para el manejo del modulo RTC
 #include <BluetoothSerial.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 BluetoothSerial SerialBT;
 RTC_DS3231 rtc;                     // crea objeto del tipo RTC_DS_3231
 LiquidCrystal_I2C lcd(0x26, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line displ
@@ -53,7 +55,7 @@ short botones = 0;
 ///////////////////// variables de las posiciones de los diferentes menus////////
 signed short posicion = 0;
 /////////////////////variables del cambio de hora/////////////////////////
-short dispendio = 0;
+bool dispendio = false;
 short milisegundos = 0;
 short servo_enable = 1;
 short aviso_cambio = 0;
@@ -62,10 +64,14 @@ String commandBT;
 char buffer[20];
 bool entradaCompleta = false; // Indicar si el String está completo
 //////////////////////////////////////////////////////////////////
+#define Pin_Sensor_Temp 5
+OneWire oneWire(Pin_Sensor_Temp);
+DallasTemperature TempSensor(&oneWire);
+float Temperature=0.0;
 int tiempo_apertura = 1000;
 short intervalos_hora = 1;
 short ultima_comida = 0;
-short proxima_comida= ultima_comida + intervalos_hora; 
+short proxima_comida= 0;
 short tipo_de_pez = 0;
 short pos = 0;
 short hora = 0;
@@ -87,8 +93,7 @@ short porcentaje_bateria = 0;
 bool alarma = false;
 bool battery_metter_available = false;
 const float adcResolution = 3400.0; // Resolución del ADC
-enum inicio
-{
+enum inicio{
   horas = 0,
   prox_comida,
   intervalo,
@@ -96,8 +101,7 @@ enum inicio
   cantidad,
   configuracion
 };
-enum config
-{
+enum config{
   config_hora = 8,
   config_intervalos,
   config_dispen,
@@ -144,8 +148,7 @@ void setup()
   Serial.println("Bluetooth iniciado");
   // Serial.begin(9600); arduino
   /////////////////////////////aviso del buzzer de que esta encendido el circuito//////////////////////////////////////
-  if (!rtc.begin())
-  { // en caso de el no encontrar el modulo RTC sonara el buzzer y el circuito no iniciara
+  if (!rtc.begin()){ // en caso de el no encontrar el modulo RTC sonara el buzzer y el circuito no iniciara
     for (int i = 0; i <= 6; i++)
     {
       digitalWrite(buzzer, HIGH);
@@ -158,6 +161,13 @@ void setup()
     lcd.print("*PRESIONE RESET*");                // si falla la inicializacion del modulo
     Serial.println("Modulo RTC no encontrado !"); // muestra mensaje de error
     while (1); // bucle infinito que detiene ejecucion del programa
+  }
+  if(!TempSensor.getDeviceCount()==0)
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("TEMP NO ENCONTRADO");
+    lcd.setCursor(0, 1);
+    lcd.print("*PRESIONE RESET*");   
   }
   // rtc.adjust(DateTime(__DATE__, __TIME__)); // comentar al momento de compilar
   // rtc.adjust(DateTime(2022,6,5,8,59,0));
@@ -185,7 +195,7 @@ void setup()
   lcd.setCursor(2, 1);
   lcd.print("*POWER FISH*");
   delay(2000);
-  lcd.clear();
+  lcd.clear(); 
   /// lee las informaciones en la memoria eeprom
   tiempo_apertura = EEPROM.get(tiem_apertura, tiempo_apertura);
   intervalos_hora = EEPROM.read(intervalos_H);
@@ -207,14 +217,16 @@ void loop()
     voltage = map(volt_bat += 40, ADC_MIN, ADC_MAX, VOLTAGE_MIN * 100, VOLTAGE_MAX * 100) / 100.0;
     bajo_voltage();
   }
+  TempSensor.requestTemperatures();
+  Temperature= TempSensor.getTempCByIndex(0);
   pantalla_principal();
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  if (dispendio == HIGH) // incia el proceso de alimentacion manualmente
+  if (dispendio == true) // incia el proceso de alimentacion manualmente
   {
     servo_enable = 1;
     DISPENDIO(); // inicia el proceso de abrir la compuerta
   }
-  if ((proxima_comida == hora && minutos == 1) || (hora == 9 && minutos == 0 && fecha.second() > 0 && fecha.second() < 2))
+  if ((ultima_comida + intervalos_hora == hora && minutos == 1) || (hora == 9 && minutos == 0 && fecha.second() > 0 && fecha.second() < 2))
   {
     Serial.println("DISPENDIO");
     servo_enable = 1;
@@ -226,7 +238,7 @@ void loop()
   { // elimina los espacios en blanco al principio y al final de la cadena
     comandos_bluetooth();
   }
-  if (entradaCompleta == HIGH) // comunicacion serial durante las horas de trabajo
+  if (entradaCompleta == HIGH) // comunicacion serial durant-e las horas de trabajo
   {
     Comando_serial();
   }
@@ -236,12 +248,16 @@ void loop()
     {
       bajo_voltage();
     }
+    serialEvent();
     DateTime fecha = rtc.now();
     hora = fecha.hour();
     botones = presionado();
+    TempSensor.requestTemperatures();
+    Temperature= TempSensor.getTempCByIndex(0);
+    Serial.printf("Temperature: %f\n", Temperature);
     pantalla_principal();
     dispendio = digitalRead(PIN_DISPENSE);
-    if (dispendio == HIGH) // incia el proceso de alimentacion manualmente
+    if (dispendio == true) // incia el proceso de alimentacion manualm
     {
       servo_enable = 1;
       DISPENDIO(); // inicia el proceso de abrir la compuerta
@@ -250,7 +266,7 @@ void loop()
     {
       Comando_serial();
     }
-    if (SerialBT.available())
+    else if (SerialBT.available())
     {                         // elimina los espacios en blanco al principio y al final de la cadena
       comandos_bluetooth();
     }
@@ -380,13 +396,12 @@ void DISPENDIO() // funcion de abrir y cerrar la compuerta
   lcd.setCursor(3, 1);
   lcd.print("*ALIMENTO*");
   /////////// avsio de que la compuerta abrira/////////////////////
-  digitalWrite(buzzer, HIGH);
-  delay(750);
-  digitalWrite(buzzer, LOW);
-  delay(250);
-  digitalWrite(buzzer, HIGH);
-  delay(750);
-  digitalWrite(buzzer, LOW);
+  for (short i = 0; i < 2; i++) {
+    digitalWrite(buzzer, HIGH);
+    delay(750);
+    digitalWrite(buzzer, LOW);
+    delay(250);
+  }
   //////////////////////////abre compuerta////////////////////
   if (servo_enable != 0)
   {
@@ -433,14 +448,12 @@ void DISPENDIO() // funcion de abrir y cerrar la compuerta
       delay(30);
     }
     //////////////aviso de que la compuerta cerrara//////////////////////
-    digitalWrite(buzzer, HIGH);
-    delay(750);
-    digitalWrite(buzzer, LOW);
-    delay(250);
-    digitalWrite(buzzer, HIGH);
-    delay(750);
-    digitalWrite(buzzer, LOW);
-    delay(250);
+    for (short i = 0; i < 2; i++) {
+      digitalWrite(buzzer, HIGH);
+      delay(750);
+      digitalWrite(buzzer, LOW);
+      delay(250);
+    }
     lcd.clear();
     servo_enable = 0;
   }
@@ -480,10 +493,10 @@ void Comando_serial()
     }
     switch (tiempo_apertura)
     {
-      case 45:Serial.print("tamaño: pequeños");break;
-      case 75:Serial.print("tamaño: medianos");break;
-      case 100:Serial.print("tamaño: grandes");break;
-      default:Serial.print("tamaño: personalizado");break;
+      case 45:Serial.print("DISPENDIO: pequeños");break;
+      case 75:Serial.print("DISPENDIO: medianos");break;
+      case 100:Serial.print("DISPENDIO: grandes");break;
+      default:Serial.print("DISPENDIO: personalizado");break;
     }
     Serial.println();
     switch (tipo_de_pez)
@@ -543,10 +556,10 @@ void comandos_bluetooth()
     }
     switch (tiempo_apertura)
     {
-      case 45:SerialBT.print("tamaño: pequeños");break;
-      case 75:SerialBT.print("tamaño: medianos");break;
-      case 100:SerialBT.print("tamaño: grandes");break;
-      default:SerialBT.print("tamaño: personalizado");break;
+      case 45:SerialBT.print("DISPENDIO: pequeños");break;
+      case 75:SerialBT.print("DISPENDIO: medianos");break;
+      case 100:SerialBT.print("DISPENDIO: grandes");break;
+      default:SerialBT.print("DISPENDIO: personalizado");break;
     }
     SerialBT.println();
     switch (tipo_de_pez)
@@ -679,7 +692,9 @@ void pantalla_principal()
       lcd.setCursor(0, 0);
       lcd.printf("ULT. COMIDA: %d", ultima_comida);
       lcd.setCursor(0, 1);
-      lcd.printf("PROX. COMIDA: %d", proxima_comida);
+      lcd.print("PROX.COMIDA:");
+      lcd.setCursor(13,1);
+      lcd.print(ultima_comida+intervalos_hora);
       display_posicion(horas, configuracion);
     break;
    case intervalo:
@@ -699,23 +714,24 @@ void pantalla_principal()
     display_posicion(horas, configuracion);
     break;
    case tip_pez:
-    EEPROM.read(TIPO_PEZ);
-    lcd.setCursor(0, 0);
-    lcd.print("TIPO DE PEZ:");
-    lcd.setCursor(0, 1);
-    switch (tipo_de_pez)
-    {
-      case 1:lcd.print("TILAPIA");break;
-      case 2:lcd.print("TILAPIA ROJA");break;
-      case 3:lcd.print("CABEZA DE LEON");break;
-      case 4:lcd.print("SALMON");break;
-      case 5:lcd.print("BEBE DE TIBURON");break;
-      case 6:lcd.print("KOI");break;
-      case 7:lcd.print("PETRA");break;
-      default:lcd.print("NO SELECCIONADO");break;
-    }
-    display_posicion(horas, configuracion);
-   break;
+      EEPROM.read(TIPO_PEZ);
+      lcd.setCursor(0, 0);
+      lcd.print("TIPO DE PEZ:");
+      lcd.setCursor(0, 1);
+      switch (tipo_de_pez)
+      {
+        case 1:
+        lcd.printf("TILAPIA T:%.2fC", Temperature);
+        case 2:lcd.print("TILAPIA ROJA");break;
+        case 3:lcd.print("CABEZA DE LEON");break;
+        case 4:lcd.print("SALMON");break;
+        case 5:lcd.print("BEBE DE TIBURON");break;
+        case 6:lcd.print("KOI");break;
+        case 7:lcd.print("PETRA");break;
+        default:lcd.print("NO SELECCIONADO");break;
+      }
+      display_posicion(horas, configuracion);
+    break;
    case cantidad:
     tiempo_apertura = EEPROM.get(tiem_apertura, tiempo_apertura);
     lcd.setCursor(0, 0);
@@ -829,7 +845,7 @@ void pantalla_configuraciones()
         lcd.clear();
         configuracion_motores();
       }
-      else if (dispendio == HIGH) // incia el proceso de alimentacion manualmente
+      else if (dispendio == true) // incia el proceso de alimentacion manualmente
       {
         servo_enable = 1;
         DISPENDIO(); // inicia el proceso de abrir la compuerta
@@ -893,6 +909,7 @@ void configuracion_hora()
         delay(antirebote);
         rtc.adjust(DateTime(2022, 6, 5, suma_hora, minutos, 0));
         EEPROM.put(suma_H, suma_hora);
+        ultima_comida=suma_hora;
         posicion = 16;
       }
 
@@ -1092,10 +1109,12 @@ void configuracion_dispendio()
       }
       if (tiempo_apertura == -1)
       {
+        lcd.clear();
         tiempo_apertura = 32760;
       }
       if (tiempo_apertura > 32760)
       {
+        lcd.clear();
         tiempo_apertura = 0;
       }
       break;
