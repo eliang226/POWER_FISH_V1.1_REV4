@@ -119,7 +119,7 @@ enum tipo_de_pez
   tilapia_roja,
   cabeza_de_leon,
   salmon,
-  bebe_de_tiburon,
+  tiburon_pangasio,
   koi,
   petra, 
 };
@@ -223,6 +223,18 @@ void setup()
     T_MAX=32.5;
     T_MIN=22.0;
   break;
+  case tilapia_roja:
+    T_MAX=32.5;
+    T_MIN=22.0;
+  break;
+  case cabeza_de_leon:
+    T_MAX=25.0;
+    T_MIN=15.0;
+  break;
+  case tiburon_pangasio:
+    T_MAX=30.0;
+    T_MIN=23.0;
+  break;  
   default:
     break;
   }
@@ -273,13 +285,14 @@ void loop()
     servo_enable = 1;
     DISPENDIO(); // inicia el proceso de abrir la compuerta
   }
-  if ((ultima_comida + intervalos_hora == hora && minutos == 1) || (hora == 9 && minutos == 0 && fecha.second() > 0 && fecha.second() < 2))
+  if ((ultima_comida + intervalos_hora == hora && minutos == 1) || (hora == 9 && minutos == 0 && fecha.second() >= 0 && fecha.second() <= 2))
   {
     Serial.println("DISPENDIO");
     servo_enable = 1;
-    DISPENDIO(); // inicia el proceso de abrir la compuerta
     ultima_comida = hora;
     EEPROM.put(ultim_corrid, ultima_comida);
+    delay(20);
+    DISPENDIO(); // inicia el proceso de abrir la compuerta
   }
   if (SerialBT.available())
   { // elimina los espacios en blanco al principio y al final de la cadena
@@ -301,7 +314,30 @@ void loop()
     botones = presionado();
     TempSensor.requestTemperatures();
     Temperature= TempSensor.getTempCByIndex(0);
-    Serial.printf("Temperature: %f\n", Temperature);
+    if(Temperature>T_MAX)
+    {
+      lcd.clear();
+      lcd.setCursor(1,0);
+      lcd.print("*TEMPERATURA*");
+      lcd.setCursor(5,1);
+      lcd.print("*ALTA*");
+      digitalWrite(buzzer,HIGH);
+      delay(1500);
+      digitalWrite(buzzer,LOW);
+      lcd.clear();
+    }
+    if(Temperature<T_MIN)
+    {
+      lcd.clear();
+      lcd.setCursor(1,0);
+      lcd.print("*TEMPERATURA*");
+      lcd.setCursor(5,1);
+      lcd.print("*BAJA*");
+      digitalWrite(buzzer,HIGH);
+      delay(1500);
+      digitalWrite(buzzer,LOW);
+      lcd.clear();
+    }   
     pantalla_principal();
     dispendio = digitalRead(PIN_DISPENSE);
     if (dispendio == true) // incia el proceso de alimentacion manualm
@@ -553,7 +589,7 @@ void Comando_serial()
       case 2:Serial.print("TIPO DE PEZ: TILAPIA ROJA");break;
       case 3:Serial.print("TIPO DE PEZ: CABEZA DE LEON");break;
       case 4:Serial.print("TIPO DE PEZ: SALMON");break;
-      case 5:Serial.print("TIPO DE PEZ: BEBE DE TIBURON");break;
+      case 5:Serial.print("TIPO DE PEZ: PANGASIO");break;
       case 6:Serial.print("TIPO DE PEZ: KOI");break;
       case 7:Serial.print("TIPO DE PEZ: PETRA");break;
       default:Serial.print("NO SELECCIONADO");break;
@@ -616,7 +652,7 @@ void comandos_bluetooth()
       case 2:SerialBT.print("TIPO DE PEZ: TILAPIA ROJA");break;
       case 3:SerialBT.print("TIPO DE PEZ: CABEZA DE LEON");break;
       case 4:SerialBT.print("TIPO DE PEZ: SALMON");break;
-      case 5:SerialBT.print("TIPO DE PEZ: BEBE DE TIBURON");break;
+      case 5:SerialBT.print("TIPO DE PEZ: PANGASIO");break;
       case 6:SerialBT.print("TIPO DE PEZ: KOI");break;
       case 7:SerialBT.print("TIPO DE PEZ: PETRA");break;
       default:SerialBT.print("NO SELECCIONADO");break;
@@ -747,18 +783,10 @@ void pantalla_principal()
     break;
    case intervalo:
     EEPROM.read(intervalos_H);
-    lcd.setCursor(3, 0);
-    lcd.print("INTERVALOS:");
-    if (intervalos_hora > 1)
-    {
-      lcd.setCursor(2, 1);
-      lcd.printf("CADA: %d HORAS", intervalos_hora);
-    }
-    else
-    {
-      lcd.setCursor(3, 1);
-      lcd.printf("CADA: %d HORA", intervalos_hora);
-    }
+    lcd.setCursor(0, 0);
+    lcd.printf("INTERVALOS:C/%dH", intervalos_hora);
+    lcd.setCursor(0, 1);
+    lcd.printf("Temp:%.2f'C",Temperature);
     display_posicion(horas, configuracion);
     break;
    case tip_pez:
@@ -768,11 +796,11 @@ void pantalla_principal()
       lcd.setCursor(0, 1);
       switch (tipo_de_pez)
       {
-        case tilapia:         lcd.printf("TILAPIA T:%.2fC", Temperature); break;
+        case tilapia:         lcd.print("TILAPIA"); break;
         case tilapia_roja:    lcd.print("TILAPIA ROJA");break;
         case cabeza_de_leon:  lcd.print("CABEZA DE LEON");break;
         case salmon:          lcd.print("SALMON");break;
-        case bebe_de_tiburon: lcd.print("BEBE DE TIBURON");break;
+        case tiburon_pangasio: lcd.print("PANGASIO");break;
         case koi :            lcd.print("KOI");break;
         case petra:           lcd.print("PETRA");break;
         default:              lcd.print("NO SELECCIONADO");break;
@@ -1210,6 +1238,8 @@ void configuracion_tipo_pez()
         EEPROM.put(TIPO_PEZ, tipo_de_pez);
         EEPROM.commit();
         posicion = config_pez;
+        T_MAX=32.5;
+        T_MIN=22.0;
         parametro_actualizado();
         return;
       }
@@ -1226,6 +1256,8 @@ void configuracion_tipo_pez()
         tipo_de_pez = 3;
         EEPROM.put(TIPO_PEZ, tipo_de_pez);
         EEPROM.commit();
+        T_MAX=25.0;
+        T_MIN=15.0;
         posicion = config_pez;
         parametro_actualizado();
         return;
@@ -1253,13 +1285,15 @@ void configuracion_tipo_pez()
       lcd.setCursor(0, 0);
       lcd.print("TIPO DE PEZ");
       lcd.setCursor(0, 1);
-      lcd.print("->TIBURONES");
+      lcd.print("->PANGASIO");
       if (botones == VALOR_ENTER)
       {
         delay(antirebote);
         tipo_de_pez = 5;
         EEPROM.put(TIPO_PEZ, tipo_de_pez);
         EEPROM.commit();
+        T_MAX=30.0;
+        T_MIN=23.0;
         posicion = config_pez;
         parametro_actualizado();
         return;
