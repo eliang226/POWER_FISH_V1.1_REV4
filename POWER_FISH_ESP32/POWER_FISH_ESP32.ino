@@ -175,12 +175,17 @@ void setup()
     Serial.println("Modulo RTC no encontrado !"); // muestra mensaje de error
     while (1); // bucle infinito que detiene ejecucion del programa
   }
-  if(!TempSensor.getDeviceCount()==0)
+  TempSensor.begin();
+  TempSensor.requestTemperatures();
+  Temperature= TempSensor.getTempCByIndex(0);
+  if(Temperature==-127)
   {
-    lcd.setCursor(0, 0);
-    lcd.print("TEMP NO ENCONTRADO");
-    lcd.setCursor(0, 1);
-    lcd.print("*PRESIONE RESET*");   
+    lcd.setCursor(1, 0);
+    lcd.print("*SENSOR TEMP*");
+    lcd.setCursor(1, 1);
+    lcd.print("*DESCONECTADO*");
+    delay(1500);
+    lcd.clear();        
   }
   // rtc.adjust(DateTime(__DATE__, __TIME__)); // comentar al momento de compilar
   // rtc.adjust(DateTime(2022,6,5,8,59,0));
@@ -266,7 +271,7 @@ void loop()
       digitalWrite(buzzer,LOW);
       lcd.clear();
   }
-  if(Temperature<T_MIN)
+  if(Temperature<T_MIN && Temperature>1.00)
   {
     lcd.clear();
     lcd.setCursor(1,0);
@@ -326,7 +331,7 @@ void loop()
       digitalWrite(buzzer,LOW);
       lcd.clear();
     }
-    if(Temperature<T_MIN)
+    if(Temperature<T_MIN && Temperature>1.00)
     {
       lcd.clear();
       lcd.setCursor(1,0);
@@ -596,6 +601,10 @@ void Comando_serial()
     }
     Serial.println();
     Serial.printf("voltaje:%d(%d%%)",voltage,porcentaje_bateria);
+    SerialBT.println();    
+    Serial.printf("Temperatura:%.2f'C",Temperature);
+    if(Temperature==-127)Serial.print("(Sensor desconectado)");
+
   }
   else if (entradaSerial == "dispensa\n") // dispensa desde la pc
   {
@@ -659,6 +668,9 @@ void comandos_bluetooth()
     }
     SerialBT.println();
     SerialBT.printf("voltaje:%d(%d%%)",voltage,porcentaje_bateria);
+    SerialBT.println();
+    SerialBT.printf("Temperatura:%.2f'C",Temperature);
+    if(Temperature==-127)SerialBT.print("(Sensor desconectado)");
   }
   else if (commandBT == "dispensa")
   {
